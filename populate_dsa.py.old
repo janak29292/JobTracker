@@ -1,0 +1,1520 @@
+import os
+import django
+
+# Set the DJANGO_SETTINGS_MODULE to your project's settings
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "JobTracker.settings")
+django.setup()
+
+from user.models import Category, Pattern, Problem, Approach
+
+def clear_existing():
+    print("Clearing existing DSA data...")
+    Category.objects.all().delete()
+    print("Cleared.")
+
+def populate():
+    clear_existing()
+    print("Populating DSA data...")
+
+    print("Processing Array...")
+    cat_0, _ = Category.objects.get_or_create(name="Array")
+
+    pat_0_0 = Pattern.objects.create(
+        category=cat_0,
+        name="""Two Pointer Technique""",
+        description="""Using two pointers (usually left and right) to iterate through an array. When to Use: Finding pairs, subarrays, or partitioning problems""",
+        use_cases="""Finding pairs, reversing arrays"""
+    )
+    prob_0_0_0 = Problem.objects.create(
+        pattern=pat_0_0,
+        phrase="""Two Sum""",
+        statement="""Given an array arr[] of n integers and a target value, find whether there is a pair of elements in the array whose sum is equal to target."""
+    )
+    Approach.objects.create(
+        pattern=pat_0_0,
+        name="""HashSet""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    Approach.objects.create(
+        pattern=pat_0_0,
+        name="""Two-Pointer""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Function to check whether any pair exists
+# whose sum is equal to the given target value
+def two_sum(arr, target):
+    # Sort the array
+    arr.sort()
+
+    left, right = 0, len(arr) - 1
+
+    # Iterate while left pointer is less than right
+    while left < right:
+        sum = arr[left] + arr[right]
+
+        # Check if the sum matches the target
+        if sum == target:
+            return True
+        elif sum < target: 
+            left += 1  # Move left pointer to the right
+        else:
+            right -= 1 # Move right pointer to the left
+
+    # If no pair is found
+    return False
+
+arr = [0, -1, 2, -3, 1]
+target = -2
+
+# Call the two_sum function and print the result
+print(two_sum(arr, target))
+""",
+        code_result="""True
+"""
+    )
+    prob_0_0_1 = Problem.objects.create(
+        pattern=pat_0_0,
+        phrase="""Container With Most Water""",
+        statement="""Given n non-negative integers representing points, find two vertical lines that form a container holding the most water."""
+    )
+    Approach.objects.create(
+        pattern=pat_0_0,
+        name="""Two Pointer""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Python3 implementation of the approach
+
+# Function to return the maximum
+# water that can be stored
+def maxWater(arr, n):
+
+    # To store the maximum water
+    # that can be stored
+    res = 0
+
+    # For every element of the array
+    for i in range(1, n - 1):
+
+        # Find the maximum element on its left
+        left = arr[i]
+        for j in range(i):
+            left = max(left, arr[j])
+
+        # Find the maximum element on its right
+        right = arr[i]
+
+        for j in range(i + 1, n):
+            right = max(right, arr[j])
+
+        # Update the maximum water
+        res = res + (min(left, right) - arr[i])
+        
+#         print(f"left: {left}, right: {right}, i: {i}, arr[i]: {arr[i]} res: {res}")
+
+    return res
+
+
+# Driver code
+if __name__ == "__main__":
+
+    arr = [0, 1, 0, 2, 1, 0,
+           1, 3, 2, 1, 2, 1]
+    n = len(arr)
+
+    print(maxWater(arr, n))
+
+# This code is contributed by AnkitRai01
+""",
+        code_result="""6
+"""
+    )
+    pat_0_1 = Pattern.objects.create(
+        category=cat_0,
+        name="""Kadane's Algorithm""",
+        description="""Efficiently calculating sum/product of subarray elements. When to Use: Maximum/minimum sum of contiguous subarray""",
+        use_cases="""Maximum subarray sum, Maximum product"""
+    )
+    prob_0_1_0 = Problem.objects.create(
+        pattern=pat_0_1,
+        phrase="""Maximum Subarray Sum""",
+        statement="""Find the sum of the contiguous subarray within a 1D array of numbers which has the largest sum."""
+    )
+    Approach.objects.create(
+        pattern=pat_0_1,
+        name="""Kadane's Algorithm""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""def kadane_with_subarray(arr):
+    # Initialize variables to store the maximum sum of the current subarray (max_current)
+    # and the global maximum sum found so far (max_global).
+    max_current = arr[0]
+    max_global = arr[0]
+
+    # Initialize variables to track the start and end indices of the maximum subarray.
+    start = 0
+    end = 0
+    s = 0  # Temporary start index for the current subarray
+
+    # Iterate through the array starting from the second element
+    for i in range(1, len(arr)):
+        # Check if starting a new subarray with the current element is better than
+        # continuing with the existing subarray.
+        if arr[i] > max_current + arr[i]:
+            max_current = arr[i]
+            s = i  # Update the temporary start index to the current index
+        else:
+            max_current += arr[i]  # Continue the current subarray
+
+        # If the current subarray has a greater sum than the global maximum found so far,
+        # update the global maximum and set the start and end indices.
+        if max_current > max_global:
+            max_global = max_current
+            start = s  # Update the start index of the maximum subarray
+            end = i  # Update the end index of the maximum subarray
+        
+        
+#         print(f"arr[i]: {arr[i]}, max_current: {max_current}, s: {s}, start: {start}, end: {end}, max_global: {max_global}")
+
+    # Return the maximum sum and the subarray that produces this sum.
+    return max_global, arr[start:end+1]
+
+# Example usage
+arr = [-2, 1, -3, 4, -1, 2, 1, -5, 4]
+# arr = [8, -5, 6, -2, -5, -4]  # Another test case
+
+# Call the function and store the results
+max_sum, subarray = kadane_with_subarray(arr)
+
+# Output the results
+print("Maximum Sum:", max_sum)
+print("Subarray:", subarray)
+""",
+        code_result="""Maximum Sum: 6
+Subarray: [4, -1, 2, 1]
+"""
+    )
+    prob_0_1_1 = Problem.objects.create(
+        pattern=pat_0_1,
+        phrase="""Maximum Product Subarray""",
+        statement="""Find the contiguous subarray within an array (containing positives and negatives) which has the largest product."""
+    )
+    Approach.objects.create(
+        pattern=pat_0_1,
+        name="""Min/Max Tracking""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""def max_product_subarray(arr):
+    # Initialize the maximum and minimum product to the first element
+    max_product = arr[0]
+    min_product = arr[0]
+    result = arr[0]
+    
+    # Variables to track the start and end indices of the max product subarray
+    start = 0
+    end = 0
+    temp_start_min = 0
+    temp_start_max = 0
+
+    # Iterate over the array starting from the second element
+    for i in range(1, len(arr)):
+        # If the current element is negative, swap max_product and min_product
+        if arr[i] < 0:
+            max_product, min_product = min_product, max_product
+            temp_start_min, temp_start_max = temp_start_max, temp_start_min
+
+        # Update max_product and min_product
+        if arr[i] > max_product * arr[i]:
+            max_product = arr[i]
+            temp_start_max = i  # Reset temp_start because we're starting a new subarray
+        else:
+            max_product *= arr[i]
+            
+        if arr[i] < min_product * arr[i]:
+            min_product = arr[i]
+            temp_start_min = i  # Reset temp_start because we're starting a new subarray
+        else:
+            min_product *= arr[i]
+
+#         max_product = max(arr[i], max_product * arr[i])
+#         min_product = min(arr[i], min_product * arr[i])
+
+        # Update the result with the maximum product found so far
+        if max_product > result:
+            result = max_product
+            start = temp_start_max  # Update the start index of the best subarray found
+            end = i  # Update the end index of the best subarray found
+        
+#         print(f"max_product: {max_product}, min_product: {min_product}, result: {result}, temp_start_min: {temp_start_min}, temp_start_max: {temp_start_max}, i: {i}, end: {end}, arr[i]: {arr[i]}")
+#         print(f"current_min: {arr[temp_start_min: i+1]}, current_max: {arr[temp_start_max: i + 1]}")
+
+    # Return the result and the subarray
+    return result, arr[start:end+1]
+#     return result, []
+
+# Example usage
+arr = [2, 3, -2, 4]
+max_product, subarray = max_product_subarray(arr)
+print("Maximum Product:", max_product)  # Output: 6
+print("Subarray:", subarray)  # Output: [2, 3]
+
+arr = [-2, 0, -1]
+max_product, subarray = max_product_subarray(arr)
+print("Maximum Product:", max_product)  # Output: 0
+print("Subarray:", subarray)  # Output: [0]
+
+arr = [-2, 3, -4]
+max_product, subarray = max_product_subarray(arr)
+print("Maximum Product:", max_product)  # Output: 24
+print("Subarray:", subarray)  # Output: [-2, 3, -4]
+
+
+arr = [2, 4, 6, -8, -10]
+max_product, subarray = max_product_subarray(arr)
+print("Maximum Product:", max_product)  # Output: 48
+print("Subarray:", subarray)  # Output: [-2, 3, -4]""",
+        code_result="""Maximum Product: 6
+Subarray: [2, 3]
+Maximum Product: 0
+Subarray: [-2, 0]
+Maximum Product: 24
+Subarray: [-2, 3, -4]
+Maximum Product: 3840
+Subarray: [2, 4, 6, -8, -10]
+"""
+    )
+    pat_0_2 = Pattern.objects.create(
+        category=cat_0,
+        name="""Frequency Counting & HashMaps""",
+        description="""Using maps/arrays to count frequencies. When to Use: Finding duplicates, missing numbers.""",
+        use_cases="""Duplicates, missing elements, top K"""
+    )
+    prob_0_2_0 = Problem.objects.create(
+        pattern=pat_0_2,
+        phrase="""Find Duplicates""",
+        statement="""Given an array containing elements from 0 to n-1, find repeating numbers."""
+    )
+    Approach.objects.create(
+        pattern=pat_0_2,
+        name="""HashMap Count""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""def duplicates(arr):
+    # Step 1: Create an empty dictionary to store element frequencies
+    freq_map = {}
+    result = []
+
+    # Step 2: Iterate through the array and count element frequencies
+    for num in arr:
+        freq_map[num] = freq_map.get(num, 0) + 1
+
+    # Step 3: Iterate through the dictionary to find duplicates
+    for key, value in freq_map.items():
+        if value > 1:
+            result.append(key)
+
+    # Step 4: If no duplicates found, add -1 to the result
+    if not result:
+        result.append(-1)
+    # Step 5: Sort the result
+    result.sort()
+    # Step 6: Return the result list containing duplicate elements or -1
+    return result
+
+if __name__ == "__main__":
+    a = [1, 6, 5, 2, 3, 3, 2]
+    duplicates_found = duplicates(a)
+    
+    print("Duplicate elements:", end=" ")
+    for element in duplicates_found:
+        print(element, end=" ")
+    print()
+""",
+        code_result="""Duplicate elements: 2 3 
+"""
+    )
+    Approach.objects.create(
+        pattern=pat_0_2,
+        name="""Array Index Traversal""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""class Solution:
+    def findDuplicates(self, nums):
+        n = len(nums)  # Get the length of the input list
+        
+        # Create an auxiliary list of size n+1 initialized to 0
+        arr = [0] * (n)
+        
+        result = []  # List to store duplicates
+
+        # Iterate through each number in the input list
+        for num in nums:
+            
+            arr[num] += 1  # Increment the count for this number
+            
+            if arr[num] == 2:  # Check if it is now a duplicate
+              
+                result.append(num)  # If it is a duplicate,
+                                    # add it to the list
+
+        return result  # Return the list of duplicates
+
+
+if __name__ == "__main__":
+    solution = Solution()
+    nums = [4, 3, 2, 7, 7, 2, 3, 1]
+    duplicates = solution.findDuplicates(nums)
+    print("Duplicate elements are: ", end="")
+    for num in duplicates:
+        print(num, end=" ")  # Output: 2 3
+    print()
+""",
+        code_result="""Duplicate elements are: 7 2 3 
+"""
+    )
+    pat_0_3 = Pattern.objects.create(
+        category=cat_0,
+        name="""Prefix/Suffix Products""",
+        description="""Calculating products/sums excluding the current element using left and right sweeps.""",
+        use_cases="""Product except self"""
+    )
+    prob_0_3_0 = Problem.objects.create(
+        pattern=pat_0_3,
+        phrase="""Product Array Puzzle""",
+        statement="""Construct a Product Array where prod[i] is equal to the product of all elements except arr[i] without using division."""
+    )
+    Approach.objects.create(
+        pattern=pat_0_3,
+        name="""Left & Right Sweeps""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Python3 program for A Product Array Puzzle 
+def productArray(arr, n): 
+
+    # Base case 
+    if n == 1: 
+        print(0) 
+        return
+
+    temp = 1
+
+    # Allocate memory for the product array 
+    prod = [1] * n
+
+    # Initialize the product array as 1 
+
+    # In this loop, temp variable contains product of 
+    # elements on left side excluding arr[i] 
+    for i in range(n): 
+        prod[i] = temp 
+        temp *= arr[i] 
+
+    # Initialize temp to 1 for product on right side 
+    temp = 1
+
+    # In this loop, temp variable contains product of 
+    # elements on right side excluding arr[i] 
+    for i in range(n - 1, -1, -1): 
+        prod[i] *= temp 
+        temp *= arr[i]
+
+    # Print the constructed prod array 
+    for i in range(n): 
+        print(prod[i], end=" ") 
+
+    return
+
+
+# Driver Code 
+arr = [10, 3, 5, 6, 2] 
+n = len(arr) 
+print("The product array is: ") 
+productArray(arr, n) 
+
+# This code is contributed by mohit kumar 
+""",
+        code_result="""The product array is: 
+180 600 360 300 900 """
+    )
+    pat_0_4 = Pattern.objects.create(
+        category=cat_0,
+        name="""Stock Buy/Sell Pattern""",
+        description="""Optimization chronologically. When to Use: Finding max differences.""",
+        use_cases="""Best time to buy/sell"""
+    )
+    prob_0_4_0 = Problem.objects.create(
+        pattern=pat_0_4,
+        phrase="""Best Time to Buy and Sell Stock""",
+        statement="""Find maximum profit with at most one transaction."""
+    )
+    Approach.objects.create(
+        pattern=pat_0_4,
+        name="""One Traversal""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Python Program to solve stock buy and sell 
+# using one traversal
+
+def maxProfit(prices):
+    minSoFar = prices[0]
+    res = 0
+
+    # Update the minimum value seen so far 
+    # if we see smaller
+    for i in range(1, len(prices)):
+        minSoFar = min(minSoFar, prices[i])
+        
+        # Update result if we get more profit                
+        res = max(res, prices[i] - minSoFar)
+    return res
+
+if __name__ == "__main__":
+    prices = [7, 20, 1, 3, 6, 9, 2]
+    print(maxProfit(prices))
+""",
+        code_result="""13
+"""
+    )
+    pat_0_5 = Pattern.objects.create(
+        category=cat_0,
+        name="""Binary Search on Unsorted Array""",
+        description="""Applying binary search concepts on rotated or modified arrays.""",
+        use_cases="""Rotated arrays, finding peaks"""
+    )
+    prob_0_5_0 = Problem.objects.create(
+        pattern=pat_0_5,
+        phrase="""Find Minimum in Rotated Sorted Array""",
+        statement="""Find the minimum element in a sorted array that has been rotated."""
+    )
+    Approach.objects.create(
+        pattern=pat_0_5,
+        name="""Binary Search""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""def find_min(arr):
+    \"\"\"Function to find the minimum element in a rotated sorted array.\"\"\"
+    low, high = 0, len(arr) - 1
+
+    while low < high:
+        # The current subarray is already sorted,
+        # the minimum is at the low index
+        if arr[low] <= arr[high]:
+            return arr[low]
+
+        # We reach here when we have at least
+        # two elements and the current subarray
+        # is rotated
+        mid = (low + high) // 2
+
+        # The right half is not sorted. So
+        # the minimum element must be in the
+        # right half.
+        if arr[mid] > arr[high]:
+            low = mid + 1
+
+        # The right half is sorted. Note that in
+        # this case, we do not change high to mid - 1
+        # but keep it to mid. The mid element
+        # itself can be the smallest
+        else:
+            high = mid
+
+    return arr[low]
+
+# Driver program to test above functions
+if __name__ == "__main__":
+    arr = [5, 6, 1, 2, 3, 4]
+    print(find_min(arr))
+""",
+        code_result="""1
+"""
+    )
+    prob_0_5_1 = Problem.objects.create(
+        pattern=pat_0_5,
+        phrase="""Search in Rotated Sorted Array""",
+        statement="""Find the index of a given key in a sorted and rotated array."""
+    )
+    Approach.objects.create(
+        pattern=pat_0_5,
+        name="""Binary Search (Pivoted)""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""def pivoted_search(arr, key):
+    low, high = 0, len(arr) - 1
+
+    while low <= high:
+        mid = low + (high - low) // 2
+
+        # Case 1: Find key
+        if arr[mid] == key:
+            return mid
+
+        # Case 2: Left half is sorted
+        if arr[mid] >= arr[low]:
+            if key >= arr[low] and key < arr[mid]:
+                high = mid - 1
+            else:
+                low = mid + 1
+
+        # Case 3: Right half is sorted
+        else:
+            if key > arr[mid] and key <= arr[high]:
+                low = mid + 1
+            else:
+                high = mid - 1
+#         print(f"mid: {arr[mid]}")
+
+    return -1  # Key not found
+
+# Driver code
+arr1 = [4, 5, 6, 7, 0, 1, 2]
+key1 = 4
+result1 = pivoted_search(arr1, key1)
+print(result1)  # Output: 4
+
+arr2 = [4, 5, 6, 7, 0, 1, 2]
+key2 = 3
+result2 = pivoted_search(arr2, key2)
+print(result2)  # Output: -1
+""",
+        code_result="""0
+-1
+"""
+    )
+    print("Processing Matrix...")
+    cat_1, _ = Category.objects.get_or_create(name="Matrix")
+
+    pat_1_0 = Pattern.objects.create(
+        category=cat_1,
+        name="""Matrix Traversal Patterns""",
+        description="""Techniques for navigating 2D arrays (Spiral, Diagonal, Zigzag).""",
+        use_cases="""Spiral order, diagonal processing"""
+    )
+    prob_1_0_0 = Problem.objects.create(
+        pattern=pat_1_0,
+        phrase="""Spiral Matrix""",
+        statement="""Print all elements of an M x N matrix in spiral form."""
+    )
+    Approach.objects.create(
+        pattern=pat_1_0,
+        name="""Boundary Tracking""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""def spiralPrint(m, n, a):
+    # Initialize boundaries
+    top, bottom, left, right = 0, m - 1, 0, n - 1
+
+    # Iterate until all elements are printed
+    while top <= bottom and left <= right:
+        # Print top row from left to right
+        for i in range(left, right + 1):
+            print(a[top][i], end=" ")
+        top += 1
+
+        # Print right column from top to bottom
+        for i in range(top, bottom + 1):
+            print(a[i][right], end=" ")
+        right -= 1
+
+        # Print bottom row from right to left (if exists)
+        if top <= bottom:
+            for i in range(right, left - 1, -1):
+                print(a[bottom][i], end=" ")
+            bottom -= 1
+
+        # Print left column from bottom to top (if exists)
+        if left <= right:
+            for i in range(bottom, top - 1, -1):
+                print(a[i][left], end=" ")
+            left += 1
+
+# Main function
+if __name__ == "__main__":
+    # Example matrix initialization
+    matrix = [
+        [1, 2, 3, 4],
+        [5, 6, 7, 8],
+        [9, 10, 11, 12],
+        [13, 14, 15, 16]
+    ]
+
+    # Function call to print matrix elements in spiral order
+    spiralPrint(len(matrix), len(matrix[0]), matrix)
+""",
+        code_result="""1 2 3 4 8 12 16 15 14 13 9 5 6 7 11 10 """
+    )
+    pat_1_1 = Pattern.objects.create(
+        category=cat_1,
+        name="""Matrix Modification""",
+        description="""Setting rows/columns based on conditions.""",
+        use_cases="""Set matrix zeros, rotation"""
+    )
+    prob_1_1_0 = Problem.objects.create(
+        pattern=pat_1_1,
+        phrase="""Set Matrix Zeroes""",
+        statement="""If an element is 1 (or 0), set its entire row and column to 1 (or 0)."""
+    )
+    Approach.objects.create(
+        pattern=pat_1_1,
+        name="""Using Auxiliary Sets""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    Approach.objects.create(
+        pattern=pat_1_1,
+        name="""In-Place Markers""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    pat_1_2 = Pattern.objects.create(
+        category=cat_1,
+        name="""Matrix Search""",
+        description="""Searching in a sorted 2D grid efficiently.""",
+        use_cases="""Row-wise sorted search"""
+    )
+    prob_1_2_0 = Problem.objects.create(
+        pattern=pat_1_2,
+        phrase="""Search in a Row-wise and Column-wise Sorted Matrix""",
+        statement="""Search for an element in an n x n matrix sorted row-wise and column-wise."""
+    )
+    Approach.objects.create(
+        pattern=pat_1_2,
+        name="""Binary Search on Rows""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    Approach.objects.create(
+        pattern=pat_1_2,
+        name="""Staircase Search""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    print("Processing String...")
+    cat_2, _ = Category.objects.get_or_create(name="String")
+
+    pat_2_0 = Pattern.objects.create(
+        category=cat_2,
+        name="""Sliding Window on Strings""",
+        description="""Substring problems with conditions by maintaining a window of characters.""",
+        use_cases="""Longest substring without repeating"""
+    )
+    prob_2_0_0 = Problem.objects.create(
+        pattern=pat_2_0,
+        phrase="""Longest Substring Without Repeating""",
+        statement="""Find the length of the longest substring without repeating characters."""
+    )
+    Approach.objects.create(
+        pattern=pat_2_0,
+        name="""Sliding Window with Set""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    pat_2_1 = Pattern.objects.create(
+        category=cat_2,
+        name="""Two Position / Frequency Tracking""",
+        description="""Comparing two strings or subsequences using counters or pointers.""",
+        use_cases="""Anagrams, edit distance"""
+    )
+    prob_2_1_0 = Problem.objects.create(
+        pattern=pat_2_1,
+        phrase="""Anagram Checking""",
+        statement="""Check whether two strings are anagrams of each other."""
+    )
+    Approach.objects.create(
+        pattern=pat_2_1,
+        name="""Sorting""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    Approach.objects.create(
+        pattern=pat_2_1,
+        name="""Character Counting Map""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""from collections import Counter
+
+def isAnagram(s1, s2):
+    if len(s1) != len(s2):
+        return False
+    counter_s1 = Counter(s1)
+    counter_s2 = Counter(s2)
+    for i in counter_s1:
+        if counter_s1[i] != counter_s2[i]:
+            return False
+    return True
+
+# Driver code
+s1 = "listen"
+s2 = "silent"
+print(isAnagram(s1, s2))
+
+s1 = "hello"
+s2 = "bello"
+print(isAnagram(s1, s2)) 
+
+""",
+        code_result="""True
+False
+"""
+    )
+    prob_2_1_1 = Problem.objects.create(
+        pattern=pat_2_1,
+        phrase="""Longest Common Subsequence""",
+        statement="""Find the length of the longest common subsequence mapped between two strings."""
+    )
+    Approach.objects.create(
+        pattern=pat_2_1,
+        name="""Dynamic Programming""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    pat_2_2 = Pattern.objects.create(
+        category=cat_2,
+        name="""Palindrome Problems""",
+        description="""Checking or finding palindromes by expanding around centers or moving pointers inwards.""",
+        use_cases="""Valid palindrome, Longest palindromic substring"""
+    )
+    prob_2_2_0 = Problem.objects.create(
+        pattern=pat_2_2,
+        phrase="""Valid Palindrome""",
+        statement="""Check if a string is a palindrome after removing special characters."""
+    )
+    Approach.objects.create(
+        pattern=pat_2_2,
+        name="""Two Pointers""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    prob_2_2_1 = Problem.objects.create(
+        pattern=pat_2_2,
+        phrase="""Longest Palindromic Substring""",
+        statement="""Find the longest palindromic substring in a given string."""
+    )
+    Approach.objects.create(
+        pattern=pat_2_2,
+        name="""Expand Around Center""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    print("Processing Linked List...")
+    cat_3, _ = Category.objects.get_or_create(name="Linked List")
+
+    pat_3_0 = Pattern.objects.create(
+        category=cat_3,
+        name="""Two Pointer (Fast & Slow)""",
+        description="""Using two pointers moving at different speeds to detect cycles or find middle nodes.""",
+        use_cases="""Cycle detection, finding middle element"""
+    )
+    prob_3_0_0 = Problem.objects.create(
+        pattern=pat_3_0,
+        phrase="""Detect Cycle in Linked List""",
+        statement="""Check whether a given Linked List contains a cycle."""
+    )
+    Approach.objects.create(
+        pattern=pat_3_0,
+        name="""Floyd's Cycle-Finding Algorithm""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    Approach.objects.create(
+        pattern=pat_3_0,
+        name="""Hashing""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    prob_3_0_1 = Problem.objects.create(
+        pattern=pat_3_0,
+        phrase="""Find Middle Node""",
+        statement="""Find the middle of a given linked list."""
+    )
+    Approach.objects.create(
+        pattern=pat_3_0,
+        name="""Fast and Slow Pointers""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    pat_3_1 = Pattern.objects.create(
+        category=cat_3,
+        name="""Reversal Pattern""",
+        description="""Reversing list links by maintaining prev, curr, and next pointers.""",
+        use_cases="""Reverse linked list"""
+    )
+    prob_3_1_0 = Problem.objects.create(
+        pattern=pat_3_1,
+        phrase="""Reverse Linked List""",
+        statement="""Reverse a linked list iteratively."""
+    )
+    Approach.objects.create(
+        pattern=pat_3_1,
+        name="""Iterative Reversal""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""head = Node(1)
+head.next = Node(2)
+head.next.next = Node(3)
+head.next.next.next = Node(4)
+head.next.next.next.next = Node(5)
+
+def reverse_list(head):
+
+    # Initialize three pointers: curr, prev and next
+    curr = head
+    prev = None
+
+    # Traverse all the nodes of Linked List
+    while curr is not None:
+
+        # Store next
+        next_node = curr.next
+
+        # Reverse current node's next pointer
+        curr.next = prev
+
+        # Move pointers one position ahead
+        prev = curr
+        curr = next_node
+
+    # Return the head of reversed linked list
+    return prev
+
+
+print("Given Linked list:", end="")
+print_list(head)
+
+head = reverse_list(head)
+
+print("Reversed Linked List:", end="")
+print_list(head)""",
+        code_result="""Given Linked list: 1 2 3 4 5
+Reversed Linked List: 5 4 3 2 1
+"""
+    )
+    pat_3_2 = Pattern.objects.create(
+        category=cat_3,
+        name="""Merge Pattern""",
+        description="""Combining sorted linked lists using dummy nodes and pointer comparisons.""",
+        use_cases="""Merge two sorted lists"""
+    )
+    prob_3_2_0 = Problem.objects.create(
+        pattern=pat_3_2,
+        phrase="""Merge Two Sorted Lists""",
+        statement="""Merge two sorted linked lists so that the new list is also sorted."""
+    )
+    Approach.objects.create(
+        pattern=pat_3_2,
+        name="""Dummy Node Iteration""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    print("Processing Stacks & Queues...")
+    cat_4, _ = Category.objects.get_or_create(name="Stacks & Queues")
+
+    pat_4_0 = Pattern.objects.create(
+        category=cat_4,
+        name="""Monotonic Stack""",
+        description="""Maintaining a stack in increasing or decreasing order to find next greater or smaller elements.""",
+        use_cases="""Next greater element, largest rectangle"""
+    )
+    prob_4_0_0 = Problem.objects.create(
+        pattern=pat_4_0,
+        phrase="""Next Greater Element""",
+        statement="""Find the next greater element for every element in an array."""
+    )
+    Approach.objects.create(
+        pattern=pat_4_0,
+        name="""Using Stack""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    pat_4_1 = Pattern.objects.create(
+        category=cat_4,
+        name="""Expression Evaluation""",
+        description="""Using operator and operand stacks for parsing or evaluating expressions.""",
+        use_cases="""Postfix evaluation, syntax parsing"""
+    )
+    prob_4_1_0 = Problem.objects.create(
+        pattern=pat_4_1,
+        phrase="""Balanced Parentheses""",
+        statement="""Check if an expression has balanced parentheses."""
+    )
+    Approach.objects.create(
+        pattern=pat_4_1,
+        name="""Stack Matching""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    pat_4_2 = Pattern.objects.create(
+        category=cat_4,
+        name="""Queue-Based BFS/Operations""",
+        description="""Using queues for level-order operations or caching.""",
+        use_cases="""LRU cache, Level-order routing"""
+    )
+    prob_4_2_0 = Problem.objects.create(
+        pattern=pat_4_2,
+        phrase="""Implement Queue using Stacks""",
+        statement="""Implement the queue operations using a stack data structure."""
+    )
+    Approach.objects.create(
+        pattern=pat_4_2,
+        name="""Two Stacks Enqueue Heavy""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    print("Processing Tree Data Structure...")
+    cat_5, _ = Category.objects.get_or_create(name="Tree Data Structure")
+
+    pat_5_0 = Pattern.objects.create(
+        category=cat_5,
+        name="""DFS Traversals""",
+        description="""Processing all nodes by exploring as far as possible along each branch before backtracking.""",
+        use_cases="""Inorder, Preorder, Postorder"""
+    )
+    prob_5_0_0 = Problem.objects.create(
+        pattern=pat_5_0,
+        phrase="""Inorder Traversal""",
+        statement="""Perform inorder traversal of a binary tree."""
+    )
+    Approach.objects.create(
+        pattern=pat_5_0,
+        name="""Recursive DFS""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    Approach.objects.create(
+        pattern=pat_5_0,
+        name="""Iterative DFS""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    pat_5_1 = Pattern.objects.create(
+        category=cat_5,
+        name="""BFS (Level Order)""",
+        description="""Processing the tree level by level using a queue.""",
+        use_cases="""Level order traversal, finding heights"""
+    )
+    prob_5_1_0 = Problem.objects.create(
+        pattern=pat_5_1,
+        phrase="""Level Order Traversal""",
+        statement="""Traverse tree nodes level by level."""
+    )
+    Approach.objects.create(
+        pattern=pat_5_1,
+        name="""Queue Implementation""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    prob_5_1_1 = Problem.objects.create(
+        pattern=pat_5_1,
+        phrase="""Maximum Depth of Binary Tree""",
+        statement="""Find the depth or height of a binary tree."""
+    )
+    Approach.objects.create(
+        pattern=pat_5_1,
+        name="""Recursive Depth""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    pat_5_2 = Pattern.objects.create(
+        category=cat_5,
+        name="""Tree Properties & Validation""",
+        description="""Checking global conditions across tree nodes using recursion.""",
+        use_cases="""Checking BST, Balanced Tree"""
+    )
+    prob_5_2_0 = Problem.objects.create(
+        pattern=pat_5_2,
+        phrase="""Validate Binary Search Tree""",
+        statement="""Determine if a binary tree is a valid BST."""
+    )
+    Approach.objects.create(
+        pattern=pat_5_2,
+        name="""Min/Max Range Checking""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    Approach.objects.create(
+        pattern=pat_5_2,
+        name="""Inorder Validation""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    prob_5_2_1 = Problem.objects.create(
+        pattern=pat_5_2,
+        phrase="""Diameter of a Binary Tree""",
+        statement="""Find the length of the longest path between any two nodes in a tree."""
+    )
+    Approach.objects.create(
+        pattern=pat_5_2,
+        name="""Height-based Calculation""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    print("Processing Heaps and Priority Queues...")
+    cat_6, _ = Category.objects.get_or_create(name="Heaps and Priority Queues")
+
+    pat_6_0 = Pattern.objects.create(
+        category=cat_6,
+        name="""Top/Bottom K Elements""",
+        description="""Finding the k-th largest or smallest elements using a heap of size k.""",
+        use_cases="""Kth largest element, Top K frequent elements"""
+    )
+    prob_6_0_0 = Problem.objects.create(
+        pattern=pat_6_0,
+        phrase="""Kth Largest Element""",
+        statement="""Find the kth largest element in an unsorted array."""
+    )
+    Approach.objects.create(
+        pattern=pat_6_0,
+        name="""Min-Heap""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    prob_6_0_1 = Problem.objects.create(
+        pattern=pat_6_0,
+        phrase="""Top K Frequent Elements""",
+        statement="""Find the k most frequent elements in an array."""
+    )
+    Approach.objects.create(
+        pattern=pat_6_0,
+        name="""Priority Queue with frequency map""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    pat_6_1 = Pattern.objects.create(
+        category=cat_6,
+        name="""Merge K Pattern""",
+        description="""Merging multiple sorted structures using a min-heap.""",
+        use_cases="""Merge K sorted lists/arrays"""
+    )
+    prob_6_1_0 = Problem.objects.create(
+        pattern=pat_6_1,
+        phrase="""Merge K Sorted Arrays""",
+        statement="""Merge k sorted arrays into a single sorted array."""
+    )
+    Approach.objects.create(
+        pattern=pat_6_1,
+        name="""Min-Heap tracking pointers""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    print("Processing Graphs...")
+    cat_7, _ = Category.objects.get_or_create(name="Graphs")
+
+    pat_7_0 = Pattern.objects.create(
+        category=cat_7,
+        name="""Graph Traversal (BFS/DFS)""",
+        description="""Systematically exploring vertices and edges in a graph.""",
+        use_cases="""Cycle detection, shortest unweighted path"""
+    )
+    prob_7_0_0 = Problem.objects.create(
+        pattern=pat_7_0,
+        phrase="""DFS of Graph""",
+        statement="""Return a list containing the DFS traversal of the graph."""
+    )
+    Approach.objects.create(
+        pattern=pat_7_0,
+        name="""Recursive DFS""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    prob_7_0_1 = Problem.objects.create(
+        pattern=pat_7_0,
+        phrase="""BFS of Graph""",
+        statement="""Return a list containing the BFS traversal of the graph."""
+    )
+    Approach.objects.create(
+        pattern=pat_7_0,
+        name="""Queue-based BFS""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    pat_7_1 = Pattern.objects.create(
+        category=cat_7,
+        name="""Topological Sort""",
+        description="""Ordering vertices in a directed acyclic graph based on dependencies.""",
+        use_cases="""Course schedule, task ordering"""
+    )
+    prob_7_1_0 = Problem.objects.create(
+        pattern=pat_7_1,
+        phrase="""Topological Sort""",
+        statement="""Find the topological ordering of a Directed Acyclic Graph (DAG)."""
+    )
+    Approach.objects.create(
+        pattern=pat_7_1,
+        name="""DFS with Stack""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    Approach.objects.create(
+        pattern=pat_7_1,
+        name="""Kahn's Algorithm (BFS)""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    pat_7_2 = Pattern.objects.create(
+        category=cat_7,
+        name="""Shortest Path""",
+        description="""Finding minimum weight paths using algorithms like Dijkstra's or Bellman-Ford.""",
+        use_cases="""Routing, minimum cost to reach destination"""
+    )
+    prob_7_2_0 = Problem.objects.create(
+        pattern=pat_7_2,
+        phrase="""Dijkstra's Algorithm""",
+        statement="""Given a graph and a source vertex, find the shortest paths from source to all vertices."""
+    )
+    Approach.objects.create(
+        pattern=pat_7_2,
+        name="""Priority Queue (Min-Heap)""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    prob_7_2_1 = Problem.objects.create(
+        pattern=pat_7_2,
+        phrase="""Bellman-Ford Algorithm""",
+        statement="""Find shortest paths from source to all vertices handling negative weight edges."""
+    )
+    Approach.objects.create(
+        pattern=pat_7_2,
+        name="""Edge Relaxation""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    print("Processing Dynamic Programming...")
+    cat_8, _ = Category.objects.get_or_create(name="Dynamic Programming")
+
+    pat_8_0 = Pattern.objects.create(
+        category=cat_8,
+        name="""1D DP (Linear)""",
+        description="""Solving problems where the state depends only on previous consecutive states.""",
+        use_cases="""Climbing stairs, house robber"""
+    )
+    prob_8_0_0 = Problem.objects.create(
+        pattern=pat_8_0,
+        phrase="""Climbing Stairs""",
+        statement="""Count ways to climb n stairs taking 1 or 2 steps at a time."""
+    )
+    Approach.objects.create(
+        pattern=pat_8_0,
+        name="""Tabulation""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    Approach.objects.create(
+        pattern=pat_8_0,
+        name="""Space Optimization""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    prob_8_0_1 = Problem.objects.create(
+        pattern=pat_8_0,
+        phrase="""Coin Change""",
+        statement="""Find the minimum number of coins that make up the given amount."""
+    )
+    Approach.objects.create(
+        pattern=pat_8_0,
+        name="""Bottom-up DP""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    pat_8_1 = Pattern.objects.create(
+        category=cat_8,
+        name="""2D DP (Subsequence)""",
+        description="""State depends on two parameters, typically representing prefixes of two sequences.""",
+        use_cases="""Longest Common Subsequence, Edit Distance"""
+    )
+    prob_8_1_0 = Problem.objects.create(
+        pattern=pat_8_1,
+        phrase="""Longest Common Subsequence""",
+        statement="""Find the length of the longest common subsequence mapped between two strings."""
+    )
+    Approach.objects.create(
+        pattern=pat_8_1,
+        name="""2D Grid DP""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    prob_8_1_1 = Problem.objects.create(
+        pattern=pat_8_1,
+        phrase="""Edit Distance""",
+        statement="""Find minimum number of operations to convert word1 to word2."""
+    )
+    Approach.objects.create(
+        pattern=pat_8_1,
+        name="""2D Grid DP""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    pat_8_2 = Pattern.objects.create(
+        category=cat_8,
+        name="""Knapsack Patterns""",
+        description="""Choosing items within a capacity constraint to maximize value.""",
+        use_cases="""0/1 Knapsack, Subset Sum"""
+    )
+    prob_8_2_0 = Problem.objects.create(
+        pattern=pat_8_2,
+        phrase="""0/1 Knapsack Problem""",
+        statement="""Given weights and values, find maximum value for a knapsack of capacity W."""
+    )
+    Approach.objects.create(
+        pattern=pat_8_2,
+        name="""2D DP Table""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    Approach.objects.create(
+        pattern=pat_8_2,
+        name="""Space Optimized 1D DP""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    print("Processing Bit Manipulations...")
+    cat_9, _ = Category.objects.get_or_create(name="Bit Manipulations")
+
+    pat_9_0 = Pattern.objects.create(
+        category=cat_9,
+        name="""XOR Properties""",
+        description="""Using the properties of XOR (a^a=0, a^0=a) to find single elements.""",
+        use_cases="""Find missing number, single number"""
+    )
+    prob_9_0_0 = Problem.objects.create(
+        pattern=pat_9_0,
+        phrase="""Single Number""",
+        statement="""Find the only element that appears once in an array where every other element appears twice."""
+    )
+    Approach.objects.create(
+        pattern=pat_9_0,
+        name="""XOR Accumulation""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    prob_9_0_1 = Problem.objects.create(
+        pattern=pat_9_0,
+        phrase="""Missing Number""",
+        statement="""Find the missing number in an array containing n distinct numbers taken from 0, 1, 2, ..., n."""
+    )
+    Approach.objects.create(
+        pattern=pat_9_0,
+        name="""XOR all indices and elements""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    pat_9_1 = Pattern.objects.create(
+        category=cat_9,
+        name="""Bit Tricks""",
+        description="""Using bitwise AND/OR/SHIFTS to solve specific logic problems.""",
+        use_cases="""Power of 2, Count set bits"""
+    )
+    prob_9_1_0 = Problem.objects.create(
+        pattern=pat_9_1,
+        phrase="""Power of Two""",
+        statement="""Determine if a given integer is a power of two."""
+    )
+    Approach.objects.create(
+        pattern=pat_9_1,
+        name="""Bitwise AND""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    prob_9_1_1 = Problem.objects.create(
+        pattern=pat_9_1,
+        phrase="""Number of 1 Bits (Hamming Weight)""",
+        statement="""Write a function that takes an integer and returns the number of '1' bits it has."""
+    )
+    Approach.objects.create(
+        pattern=pat_9_1,
+        name="""Brian Kernighan's Algorithm""",
+        description="Implementation details extracted from notebook",
+        time_complexity="""""",
+        space_complexity="""""",
+        code_example="""# Code snippet could not be automatically extracted based on keywords.
+pass""",
+        code_result=""""""
+    )
+    print("DSA data population script complete.")
+
+if __name__ == "__main__":
+    populate()

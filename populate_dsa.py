@@ -1,0 +1,4126 @@
+import os
+import django
+
+# Set the DJANGO_SETTINGS_MODULE to your project's settings
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "JobTracker.settings") 
+django.setup()
+
+from user.models import Category, Pattern, Problem, Approach
+
+def clear_existing():
+    print("Clearing existing DSA data...")
+    Category.objects.all().delete()
+    print("Cleared.")
+
+
+def populate_arrays():
+    print("Populating Category: Array...")
+    cat_array, _ = Category.objects.get_or_create(name="Array")
+
+    # =========================================================================
+    # Pattern 1: Two Pointer Technique
+    # =========================================================================
+    pat_two_pointer, _ = Pattern.objects.get_or_create(
+        category=cat_array,
+        name="Two Pointer Technique",
+        defaults={
+            "description": "Using two pointers (usually left and right) to iterate through an array, often used on sorted arrays to find pairs or subarrays. Move pointers based on comparisons (e.g., against a target sum).",
+            "use_cases": "Finding pairs with a specific sum, finding triplets, Container With Most Water"
+        }
+    )
+
+    # Problem 1.1: Two Sum
+    prob_two_sum, _ = Problem.objects.get_or_create(
+        pattern=pat_two_pointer,
+        phrase="Two Sum",
+        defaults={
+            "statement": "Given an array of integers and a target value, find whether there is a pair of elements whose sum equals the target. (Note: Often asks for indices, but true/false is the core logic)."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_two_pointer,
+        name="HashSet (Extra Space)",
+        defaults={
+            "description": "Iterate through the array while storing elements in a HashSet. For each element, check if (target - element) exists in the set.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(N)",
+            "code_example": '''def two_sum(arr, target):
+    s = set()
+    for num in arr:
+        complement = target - num
+        if complement in s:
+            return True
+        s.add(num)
+    return False
+
+arr = [0, -1, 2, -3, 1]
+print(two_sum(arr, -2))''',
+            "code_result": "True"
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_two_pointer,
+        name="Two-Pointer (Sorting)",
+        defaults={
+            "description": "Sort the array first. Place a left pointer at the start and a right pointer at the end. If sum < target, increment left. If sum > target, decrement right.",
+            "time_complexity": "O(N log N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def two_sum(arr, target):
+    arr.sort()
+    left, right = 0, len(arr) - 1
+    while left < right:
+        curr_sum = arr[left] + arr[right]
+        if curr_sum == target:
+            return True
+        elif curr_sum < target: 
+            left += 1 
+        else:
+            right -= 1 
+    return False
+
+arr = [0, -1, 2, -3, 1]
+print(two_sum(arr, -2))''',
+            "code_result": "True"
+        }
+    )
+
+    # Problem 1.X: 3Sum
+    prob_three_sum, _ = Problem.objects.get_or_create(
+        pattern=pat_two_pointer,
+        phrase="3Sum / Triplets with Zero Sum",
+        defaults={
+            "statement": "Given an array of distinct elements, find all triplets in the array whose sum is zero."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_two_pointer,
+        name="Sorting + Two Pointers",
+        defaults={
+            "description": "Sort the array. Iterate through the array. For each element, use two pointers (left and right) on the remaining subarray to find pairs that sum to the negative of the current element.",
+            "time_complexity": "O(N^2)",
+            "space_complexity": "O(1)",
+            "code_example": '''def find_triplets(arr):
+    arr.sort()
+    result = []
+    for i in range(len(arr) - 2):
+        if i > 0 and arr[i] == arr[i - 1]:
+            continue
+        left, right = i + 1, len(arr) - 1
+        while left < right:
+            curr_sum = arr[i] + arr[left] + arr[right]
+            if curr_sum == 0:
+                result.append([arr[i], arr[left], arr[right]])
+                left += 1
+                right -= 1
+                while left < right and arr[left] == arr[left - 1]:
+                    left += 1
+                while left < right and arr[right] == arr[right + 1]:
+                    right -= 1
+            elif curr_sum < 0:
+                left += 1
+            else:
+                right -= 1
+    return result
+
+print(find_triplets([0, -1, 2, -3, 1]))''',
+            "code_result": "[[-3, 1, 2], [-1, 0, 1]]"
+        }
+    )
+
+    # Problem 1.2: Container With Most Water
+    prob_container, _ = Problem.objects.get_or_create(
+        pattern=pat_two_pointer,
+        phrase="Container With Most Water",
+        defaults={
+            "statement": "Given n non-negative integers where each represents a vertical line. Find two lines that together with the x-axis form a container containing the most water."
+        }
+    )
+    
+    Approach.objects.get_or_create(
+        pattern=pat_two_pointer,
+        name="Two-Pointer (Inwards)",
+        defaults={
+            "description": "Start pointers at both ends. The area is limited by the shorter line. Calculate area, then move the pointer that points to the shorter line inward to potentially find a taller line.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def maxWater(arr):
+    res = 0
+    left = 0
+    right = len(arr) - 1
+    
+    while left < right:
+        # Calculate current area
+        current_area = min(arr[left], arr[right]) * (right - left)
+        res = max(res, current_area)
+        
+        # Move the pointer pointing to the shorter line
+        if arr[left] < arr[right]:
+            left += 1
+        else:
+            right -= 1
+    return res
+
+arr = [1, 8, 6, 2, 5, 4, 8, 3, 7]
+print(maxWater(arr))''',
+            "code_result": "49"
+        }
+    )
+
+
+    # =========================================================================
+    # Pattern 2: Kadane's / Subarray Tracking
+    # =========================================================================
+    pat_kadanes, _ = Pattern.objects.get_or_create(
+        category=cat_array,
+        name="Kadane's Algorithm",
+        defaults={
+            "description": "Techniques for efficiently calculating sum or product of contiguous subarray elements by keeping a running measure and resetting it when it breaks a condition.",
+            "use_cases": "Maximum contiguous subarray sum, Maximum product subarray"
+        }
+    )
+
+    # Problem 2.1: Maximum Subarray Sum
+    prob_max_sub, _ = Problem.objects.get_or_create(
+        pattern=pat_kadanes,
+        phrase="Maximum Subarray Sum",
+        defaults={
+            "statement": "Find the contiguous subarray within a 1D array of numbers which has the largest sum."
+        }
+    )
+    
+    Approach.objects.get_or_create(
+        pattern=pat_kadanes,
+        name="Kadane's (Tracking Start/End)",
+        defaults={
+            "description": "Maintain a running current max and a global max. If current max becomes negative, reset it (and the start pointer) because a negative prefix will only decrease future sums.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def kadane_max_subarray(arr):
+    max_current = max_global = arr[0]
+    start = end = s = 0
+
+    for i in range(1, len(arr)):
+        if arr[i] > max_current + arr[i]:
+            max_current = arr[i]
+            s = i
+        else:
+            max_current += arr[i]
+
+        if max_current > max_global:
+            max_global = max_current
+            start = s
+            end = i
+            
+    return max_global, arr[start:end+1]
+
+arr = [-2, 1, -3, 4, -1, 2, 1, -5, 4]
+print(kadane_max_subarray(arr))''',
+            "code_result": "(6, [4, -1, 2, 1])"
+        }
+    )
+
+    # Problem 2.2: Maximum Product Subarray
+    prob_max_prod, _ = Problem.objects.get_or_create(
+        pattern=pat_kadanes,
+        phrase="Maximum Product Subarray",
+        defaults={
+            "statement": "Find the contiguous subarray within an array (containing at least one number) which has the largest product. Remember that two negatives make a positive."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_kadanes,
+        name="Min/Max Tracking",
+        defaults={
+            "description": "Because a negative number can turn the smallest minimum into the largest maximum, we must track both the running maximum product and running minimum product at each step.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def max_product_subarray(arr):
+    max_product = min_product = result = arr[0]
+
+    for i in range(1, len(arr)):
+        if arr[i] < 0:
+            max_product, min_product = min_product, max_product
+
+        max_product = max(arr[i], max_product * arr[i])
+        min_product = min(arr[i], min_product * arr[i])
+
+        result = max(result, max_product)
+
+    return result
+
+arr = [2, 3, -2, 4]
+print(max_product_subarray(arr))
+print(max_product_subarray([-2, 0, -1]))
+print(max_product_subarray([2, 4, 6, -8, -10]))''',
+            "code_result": "6\n0\n3840"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 3: Prefix/Suffix Sweeps
+    # =========================================================================
+    pat_prefix, _ = Pattern.objects.get_or_create(
+        category=cat_array,
+        name="Prefix / Suffix Precomputation",
+        defaults={
+            "description": "Precomputing values (like products or max heights) from the left and right sides of the array to answer queries about a specific index in O(1) time.",
+            "use_cases": "Product of array except self, Trapping rain water"
+        }
+    )
+
+    prob_prod_except, _ = Problem.objects.get_or_create(
+        pattern=pat_prefix,
+        phrase="Product Array Puzzle (Except Self)",
+        defaults={
+            "statement": "Construct a Product Array where prod[i] is equal to the product of all elements except arr[i], without using the division operator."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_prefix,
+        name="Left and Right Sweeps",
+        defaults={
+            "description": "Create an array. First sweep left-to-right to store all prefix products. Then sweep right-to-left, multiplying the stored prefix by a running suffix product.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1) aux",
+            "code_example": '''def productArray(arr):
+    n = len(arr)
+    if n == 1: return [0]
+    
+    prod = [1] * n
+    
+    # Left sweep
+    temp = 1
+    for i in range(n):
+        prod[i] = temp
+        temp *= arr[i]
+        
+    # Right sweep
+    temp = 1
+    for i in range(n - 1, -1, -1):
+        prod[i] *= temp
+        temp *= arr[i]
+        
+    return prod
+
+arr = [10, 3, 5, 6, 2]
+print(productArray(arr))''',
+            "code_result": "[180, 600, 360, 300, 900]"
+        }
+    )
+
+
+    # =========================================================================
+    # Pattern 4: Frequency & HashMap Tracking
+    # =========================================================================
+    pat_freq, _ = Pattern.objects.get_or_create(
+        category=cat_array,
+        name="Frequency / Counting",
+        defaults={
+            "description": "Using HashMaps or array indexing to track how often elements occur, or tracking seen elements.",
+            "use_cases": "Finding duplicates, missing numbers, top K frequent"
+        }
+    )
+
+    prob_duplicates, _ = Problem.objects.get_or_create(
+        pattern=pat_freq,
+        phrase="Find Duplicates in Array",
+        defaults={
+            "statement": "Given an array of n elements containing elements from 0 to n-1, find all repeating numbers."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_freq,
+        name="HashMap Counting",
+        defaults={
+            "description": "Iterate through the array and track counts in a dictionary. Return any elements with count > 1.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(N)",
+            "code_example": '''def findDuplicates(arr):
+    freq_map = {}
+    result = []
+    
+    for num in arr:
+        freq_map[num] = freq_map.get(num, 0) + 1
+        
+    for key, val in freq_map.items():
+        if val > 1:
+            result.append(key)
+            
+    return sorted(result) if result else [-1]
+
+arr = [1, 6, 5, 2, 3, 3, 2]
+print(findDuplicates(arr))''',
+            "code_result": "[2, 3]"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 5: Stock Buy/Sell
+    # =========================================================================
+    pat_stock, _ = Pattern.objects.get_or_create(
+        category=cat_array,
+        name="Stock Buy/Sell Pattern",
+        defaults={
+            "description": "Optimization problems involving chronological buy/sell events. When to Use: Finding maximum differences in chronologically ordered data.",
+            "use_cases": "Best time to buy and sell stock"
+        }
+    )
+
+    prob_stock_1, _ = Problem.objects.get_or_create(
+        pattern=pat_stock,
+        phrase="Best Time to Buy and Sell Stock (1 Transaction)",
+        defaults={
+            "statement": "Given an array of stock prices, find the maximum profit possible by buying and selling stocks on different days with at most one transaction allowed."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_stock,
+        name="One Traversal",
+        defaults={
+            "description": "Track the minimum price seen so far. At each step, calculate the potential profit if sold today (current price - min_price) and update the maximum profit.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def maxProfit(prices):
+    if not prices: return 0
+    minSoFar = prices[0]
+    res = 0
+
+    for i in range(1, len(prices)):
+        minSoFar = min(minSoFar, prices[i])
+        res = max(res, prices[i] - minSoFar)
+        
+    return res
+
+prices = [7, 20, 1, 3, 6, 9, 2]
+print(maxProfit(prices))''',
+            "code_result": "13"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 6: Binary Search on Rotated Arrays
+    # =========================================================================
+    pat_binary, _ = Pattern.objects.get_or_create(
+        category=cat_array,
+        name="Modified Binary Search",
+        defaults={
+            "description": "Applying binary search logic to arrays that have been rotated or are only partially sorted.",
+            "use_cases": "Finding minimum in rotated array, searching in rotated array"
+        }
+    )
+
+    prob_find_min, _ = Problem.objects.get_or_create(
+        pattern=pat_binary,
+        phrase="Find Minimum in Rotated Sorted Array",
+        defaults={
+            "statement": "Given a sorted array of distinct elements that has been rotated, find the minimum element in O(log n) time."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_binary,
+        name="Binary Search for Min",
+        defaults={
+            "description": "Compare arr[mid] with arr[high]. If arr[mid] > arr[high], the min must be to the right. Else, it must be at mid or to the left.",
+            "time_complexity": "O(log N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def find_min(arr):
+    low, high = 0, len(arr) - 1
+
+    while low < high:
+        if arr[low] <= arr[high]:
+            return arr[low]
+
+        mid = (low + high) // 2
+
+        if arr[mid] > arr[high]:
+            low = mid + 1
+        else:
+            high = mid
+
+    return arr[low]
+
+arr = [5, 6, 1, 2, 3, 4]
+print(find_min(arr))''',
+            "code_result": "1"
+        }
+    )
+
+    prob_search_rot, _ = Problem.objects.get_or_create(
+        pattern=pat_binary,
+        phrase="Search in Rotated Sorted Array",
+        defaults={
+            "statement": "Given a sorted and rotated array of distinct elements, find the index of a given key. Return -1 if not found."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_binary,
+        name="Pivoted Binary Search",
+        defaults={
+            "description": "Calculate mid. Identify which half of the array is normally sorted. Check if the target lies within that normally sorted half to decide where to move pointers.",
+            "time_complexity": "O(log N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def pivoted_search(arr, key):
+    low, high = 0, len(arr) - 1
+
+    while low <= high:
+        mid = low + (high - low) // 2
+
+        if arr[mid] == key:
+            return mid
+
+        # Check if left half is sorted
+        if arr[mid] >= arr[low]:
+            if key >= arr[low] and key < arr[mid]:
+                high = mid - 1
+            else:
+                low = mid + 1
+        # Right half is sorted
+        else:
+            if key > arr[mid] and key <= arr[high]:
+                low = mid + 1
+            else:
+                high = mid - 1
+
+    return -1
+
+arr = [4, 5, 6, 7, 0, 1, 2]
+print(pivoted_search(arr, 4))
+print(pivoted_search(arr, 3))''',
+            "code_result": "0\\n-1"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 7: Intervals
+    # =========================================================================
+    pat_intervals, _ = Pattern.objects.get_or_create(
+        category=cat_array,
+        name="Intervals",
+        defaults={
+            "description": "Problems that involve merging, inserting, or finding non-overlapping intervals.",
+            "use_cases": "Booking systems, meeting rooms, calendar scheduling"
+        }
+    )
+
+    prob_insert_int, _ = Problem.objects.get_or_create(
+        pattern=pat_intervals,
+        phrase="Insert Interval",
+        defaults={
+            "statement": "Given a set of non-overlapping intervals and a new interval, insert the interval at the correct position. If the insertion results in overlapping intervals, then merge the overlapping intervals."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_intervals,
+        name="Linear Scan and Merge",
+        defaults={
+            "description": "Iterate through the intervals. Find the correct position based on start boundaries, adjust the new interval to merge any overlaps, and concatenate the non-overlapping parts.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(N)",
+            "code_example": '''def instert_interval(arr, interval):
+    n = len(arr)
+    start = -1
+    end = n
+    i = 0
+    j = n - 1
+    while i <= j:
+        if arr[i][1] < interval[0]:
+            start = i
+        if arr[j][0] > interval[1]:
+            end = j
+        i += 1
+        j -= 1
+
+    if start + 1 < n and arr[start + 1][0] < interval[0]:
+        interval = [arr[start + 1][0], interval[1]]
+
+    if end - 1 >= 0 and arr[end - 1][1] > interval[1]:
+        interval = [interval[0], arr[end - 1][1]]
+    
+    return arr[:start + 1] + [interval] + arr[end:]
+
+print(instert_interval([[1, 3], [6, 9]], [2, 5]))''',
+            "code_result": "[[1, 5], [6, 9]]"
+        }
+    )
+
+    prob_merge_int, _ = Problem.objects.get_or_create(
+        pattern=pat_intervals,
+        phrase="Merge Overlapping Intervals",
+        defaults={
+            "statement": "Given a set of time intervals in any order, our task is to merge all overlapping intervals into one and output the result which should have only mutually exclusive intervals."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_intervals,
+        name="In-Place Using Sort",
+        defaults={
+            "description": "Sort the intervals based on the start time. Iterate through them and if the current interval overlaps with the last merged interval, update the last merged interval's end time.",
+            "time_complexity": "O(N log N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def merge_overlap(arr):
+    arr.sort(key=lambda x: x[0])
+    res_idx = 0
+    for i in range(1, len(arr)):
+        if arr[res_idx][1] >= arr[i][0]:
+            arr[res_idx][1] = max(arr[res_idx][1], arr[i][1])
+        else:
+            res_idx += 1
+            arr[res_idx] = arr[i]
+    return arr[:res_idx + 1]
+
+arr = [[1, 3], [2, 4], [6, 8], [8, 9], [9, 10]]
+print(merge_overlap(arr))''',
+            "code_result": "[[1, 4], [6, 10]]"
+        }
+    )
+
+    prob_free_int, _ = Problem.objects.get_or_create(
+        pattern=pat_intervals,
+        phrase="Find Free Intervals",
+        defaults={
+            "statement": "Given N set of time intervals, the task is to find the intervals which don’t overlap with the given set of intervals."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_intervals,
+        name="Sort and Compare",
+        defaults={
+            "description": "Sort the intervals by starting time. Then iterate and whenever the previous interval's end time is less than the current interval's start time, you've found a free gap.",
+            "time_complexity": "O(N log N)",
+            "space_complexity": "O(N)",
+            "code_example": '''def findFreeinterval(arr, N):
+    if N < 1: return []
+    P = []
+    arr.sort(key = lambda a:a[0])
+    
+    for i in range(1, N):
+        prevEnd = arr[i - 1][1]
+        currStart = arr[i][0]
+        if prevEnd < currStart:
+            P.append([prevEnd, currStart])
+    return P
+
+arr = [[1, 3], [2, 4], [3, 5], [7, 9]]
+print(findFreeinterval(arr, len(arr)))''',
+            "code_result": "[[5, 7]]"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 8: Sliding Window / Greedy
+    # =========================================================================
+    pat_sliding, _ = Pattern.objects.get_or_create(
+        category=cat_array,
+        name="Sliding Window & Greedy",
+        defaults={
+            "description": "Evaluating a subset (window) of elements sequentially to find the most optimal property.",
+            "use_cases": "Minimizing distribution differences, maximum subarray sum of size K"
+        }
+    )
+
+    prob_chocolate, _ = Problem.objects.get_or_create(
+        pattern=pat_sliding,
+        phrase="Chocolate Distribution Problem",
+        defaults={
+            "statement": "Given an array of N integers representing chocolates in packets, distribute them to M students such that the difference between the most and least chocolates given is minimized."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_sliding,
+        name="Sort and Sliding Window",
+        defaults={
+            "description": "Sort the array. Check every window of size M and find the difference between the first and last element of the window. Keep track of the minimum difference.",
+            "time_complexity": "O(N log N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def findMinDiff(arr, n, m):
+    if (m == 0 or n == 0): return 0
+    arr.sort()
+    if (n < m): return -1
+    
+    min_diff = arr[n-1] - arr[0]
+    for i in range(len(arr) - m + 1):
+        min_diff = min(min_diff, arr[i + m - 1] - arr[i])
+    return min_diff
+
+arr = [12, 4, 7, 9, 2, 23, 25, 41, 30, 40, 28, 42, 30, 44, 48, 43, 50]
+m = 7
+print(findMinDiff(arr, len(arr), m))''',
+            "code_result": "10"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 9: Array Math
+    # =========================================================================
+    pat_math, _ = Pattern.objects.get_or_create(
+        category=cat_array,
+        name="Array Math",
+        defaults={
+            "description": "Performing complex arithmetic that exceeds standard variable bounds, sometimes mapping operations directly onto array structures.",
+            "use_cases": "Large factorials, adding large numbers"
+        }
+    )
+
+    prob_factorial, _ = Problem.objects.get_or_create(
+        pattern=pat_math,
+        phrase="Factorial of a Large Number",
+        defaults={
+            "statement": "Find the factorial of a large number (which may not fit into standard data types depending on the language)."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_math,
+        name="Standard Iteration (Python handles arbitrarily large ints)",
+        defaults={
+            "description": "In Python, integers have arbitrary precision, so standard iteration or recursion works. In other languages, this requires array-based multiplication.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def factorial(N):
+    f = 1  
+    for i in range(2, N + 1):
+        f *= i
+    return f
+
+print(factorial(100))''',
+            "code_result": "93326215443944152681699238856266700490715968264381621468592963895217599993229915608941463976156518286253697920827223758251185210916864000000000000000000000000"
+        }
+    )
+
+    # =========================================================================
+    # Adding to Existing Pattern 1: Two Pointer Technique
+    # =========================================================================
+    pat_two_pointer, _ = Pattern.objects.get_or_create(category=cat_array, name="Two Pointer Technique")
+    
+    prob_3sum, _ = Problem.objects.get_or_create(
+        pattern=pat_two_pointer,
+        phrase="3Sum (Triplets with zero sum)",
+        defaults={
+            "statement": "Given an array of distinct elements, find all unique triplets in the array whose sum is zero."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_two_pointer,
+        name="Sorting + Two Pointers",
+        defaults={
+            "description": "Sort the array. Iterate through, fixing one element and using two pointers (left and right) on the remaining array to find pairs that sum to the negative of the fixed element.",
+            "time_complexity": "O(N^2)",
+            "space_complexity": "O(1)",
+            "code_example": '''def find_triplets(arr):
+    result = []
+    arr.sort()
+    for i in range(len(arr) - 2):
+        if i > 0 and arr[i] == arr[i-1]:
+            continue
+        l, r = i + 1, len(arr) - 1
+        target = -arr[i]
+        while l < r:
+            _sum = arr[l] + arr[r]
+            if _sum == target:
+                result.append([arr[i], arr[l], arr[r]])
+                l += 1
+                r -= 1
+                while l < r and arr[l] == arr[l-1]: l += 1
+                while l < r and arr[r] == arr[r+1]: r -= 1
+            elif _sum < target:
+                l += 1
+            else:
+                r -= 1
+    return result
+
+arr = [0, -1, 2, -3, 1]
+print(find_triplets(arr))''',
+            "code_result": "[[-3, 1, 2], [-1, 0, 1]]"
+        }
+    )
+
+def populate_string():
+    print("Populating Category: String...")
+    cat_string, _ = Category.objects.get_or_create(name="String")
+
+    # =========================================================================
+    # Pattern 1: Sliding Window on Strings
+    # =========================================================================
+    pat_str_window, _ = Pattern.objects.get_or_create(
+        category=cat_string,
+        name="Sliding Window on Strings",
+        defaults={
+            "description": "Solving substring problems that require meeting a certain condition by maintaining a window of characters.",
+            "use_cases": "Longest substring without repeating characters, Minimum window substring"
+        }
+    )
+
+    prob_longest_sub, _ = Problem.objects.get_or_create(
+        pattern=pat_str_window,
+        phrase="Longest Substring Without Repeating",
+        defaults={
+            "statement": "Find the length of the longest substring without repeating characters."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_str_window,
+        name="Sliding Window with Set",
+        defaults={
+            "description": "Use two pointers (left and right) to represent a window. Use a Set to store characters in the window. If right char is in set, remove left char and shrink window.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(min(N, M))",
+            "code_example": '''def longest_unique_substr(s):
+    n = len(s)
+    res = 0
+    visited = set()
+    left, right = 0, 0
+    
+    while right < n:
+        # If character is already visited, shrink window from left
+        while s[right] in visited:
+            visited.remove(s[left])
+            left += 1
+            
+        visited.add(s[right])
+        res = max(res, right - left + 1)
+        right += 1
+        
+    return res
+
+s = "geeksforgeeks"
+print(longest_unique_substr(s))''',
+            "code_result": "7"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 2: Two Position / Frequency Tracking
+    # =========================================================================
+    pat_str_freq, _ = Pattern.objects.get_or_create(
+        category=cat_string,
+        name="Frequency or Two Pointers",
+        defaults={
+            "description": "Comparing two strings or checking properties within a string using maps, arrays, or pointers.",
+            "use_cases": "Anagram checking, string transformations"
+        }
+    )
+
+    prob_anagram, _ = Problem.objects.get_or_create(
+        pattern=pat_str_freq,
+        phrase="Anagram Checking",
+        defaults={
+            "statement": "Check whether two given strings are anagrams of each other. An anagram of a string is another string that contains the same characters, only the order of characters can be different."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_str_freq,
+        name="Character Counting Map",
+        defaults={
+            "description": "Create a frequency map (or an array of size 256 for ASCII). Increment counts for the first string and decrement counts for the second string. If any count is non-zero, they aren't anagrams.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def areAnagrams(s1, s2):
+    if len(s1) != len(s2):
+        return False
+
+    count = [0] * 256
+
+    for i in range(len(s1)):
+        count[ord(s1[i])] += 1
+        count[ord(s2[i])] -= 1
+
+    for c in count:
+        if c != 0:
+            return False
+
+    return True
+
+s1 = "geeks"
+s2 = "kseeg"
+print(areAnagrams(s1, s2))''',
+            "code_result": "True"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 3: Palindrome Problems
+    # =========================================================================
+    pat_str_palind, _ = Pattern.objects.get_or_create(
+        category=cat_string,
+        name="Palindrome Recognition",
+        defaults={
+            "description": "Checking or finding palindromes by moving pointers inwards or expanding outwards from a center.",
+            "use_cases": "Valid palindrome, Longest palindromic substring"
+        }
+    )
+
+    prob_valid_pal, _ = Problem.objects.get_or_create(
+        pattern=pat_str_palind,
+        phrase="Valid Palindrome",
+        defaults={
+            "statement": "Given a string, check if it is a palindrome, considering only alphanumeric characters and ignoring cases."
+        }
+    )
+    
+    Approach.objects.get_or_create(
+        pattern=pat_str_palind,
+        name="Two Pointers (Inwards)",
+        defaults={
+            "description": "Maintain two pointers, one at the start and one at the end. Move both inwards, skipping non-alphanumeric characters, and comparing lowercase values.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def isPalindrome(s):
+    left, right = 0, len(s) - 1
+    
+    while left < right:
+        # Skip non-alphanumeric chars
+        while left < right and not s[left].isalnum():
+            left += 1
+        while left < right and not s[right].isalnum():
+            right -= 1
+            
+        if s[left].lower() != s[right].lower():
+            return False
+            
+        left += 1
+        right -= 1
+        
+    return True
+
+print(isPalindrome("A man, a plan, a canal: Panama"))''',
+            "code_result": "True"
+        }
+    )
+
+    prob_longest_pal, _ = Problem.objects.get_or_create(
+        pattern=pat_str_palind,
+        phrase="Longest Palindromic Substring",
+        defaults={
+            "statement": "Given a string, return the longest palindromic substring in it."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_str_palind,
+        name="Expand Around Center",
+        defaults={
+            "description": "Iterate through the string, treating every character (and every character-pair) as the center of a potential palindrome, and expand outwards as long as it remains a palindrome.",
+            "time_complexity": "O(N^2)",
+            "space_complexity": "O(1)",
+            "code_example": '''def longestPalSubstr(s):
+    n = len(s)
+    if n == 0: return ""
+    
+    start = 0
+    max_len = 1
+    
+    def expandAroundCenter(left, right):
+        nonlocal start, max_len
+        while left >= 0 and right < len(s) and s[left] == s[right]:
+            if (right - left + 1) > max_len:
+                start = left
+                max_len = right - left + 1
+            left -= 1
+            right += 1
+
+    for i in range(n):
+        # Odd length palindromes
+        expandAroundCenter(i, i)
+        # Even length palindromes
+        expandAroundCenter(i, i + 1)
+        
+    return s[start:start + max_len]
+
+print(longestPalSubstr("forgeeksskeegfor"))''',
+            "code_result": "geeksskeeg"
+        }
+    )
+
+    # Adding to Pattern 1: Sliding Window on Strings
+    prob_smallest_window, _ = Problem.objects.get_or_create(
+        pattern=pat_str_window,
+        phrase="Smallest Window Substring",
+        defaults={
+            "statement": "Given two strings S and P, find the smallest substring in S that contains all characters of P, including duplicates."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_str_window,
+        name="Hashing and Two Pointers",
+        defaults={
+            "description": "Maintain a count of characters in P. Expand a window recursively in S using two pointers until all characters are matched, then shrink it from the left to minimize the window.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''from collections import defaultdict
+
+def smallest_window(s, p):
+    if len(s) < len(p): return "-1"
+    
+    hashP = defaultdict(int)
+    hashS = defaultdict(int)
+    for char in p: hashP[char] += 1
+        
+    start = 0
+    start_idx = -1
+    min_len = len(s) + 1
+    count = 0
+    
+    for j in range(len(s)):
+        hashS[s[j]] += 1
+        if hashP[s[j]] != 0 and hashS[s[j]] <= hashP[s[j]]:
+            count += 1
+            
+        if count == len(p):
+            while hashS[s[start]] > hashP[s[start]]:
+                hashS[s[start]] -= 1
+                start += 1
+                
+            lenn = j - start + 1
+            if min_len > lenn:
+                min_len = lenn
+                start_idx = start
+                
+    if start_idx == -1: return "-1"
+    return s[start_idx:start_idx + min_len]
+
+print(smallest_window("ztimetopractoice", "toc"))''',
+            "code_result": "cto"
+        }
+    )
+
+    # Adding to Pattern 2: Two Position / Frequency Tracking
+    prob_max_repeating, _ = Problem.objects.get_or_create(
+        pattern=pat_str_freq,
+        phrase="Maximum consecutive repeating character",
+        defaults={
+            "statement": "Given a string, find the maximum consecutive repeating character in a string."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_str_freq,
+        name="Linear Scan",
+        defaults={
+            "description": "Iterate through the string, comparing the current character with the previous one. Maintain a count of the current consecutive length and update the max length if exceeded.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def max_repeating(string):
+    max_len = 1
+    curr_len = 1
+    char = string[0]
+    for i in range(1, len(string)):
+        if string[i] == string[i-1]:
+            curr_len += 1
+            if max_len < curr_len:
+                max_len = curr_len
+                char = string[i]
+        else:
+            curr_len = 1
+    return char
+
+print(max_repeating("aaaabbcbbb"))''',
+            "code_result": "a"
+        }
+    )
+
+    prob_group_anagrams, _ = Problem.objects.get_or_create(
+        pattern=pat_str_freq,
+        phrase="Group Anagrams together",
+        defaults={
+            "statement": "Given a sequence of words, group all anagrams together."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_str_freq,
+        name="Hash Map with Frequencies",
+        defaults={
+            "description": "Use a dictionary where the key is a character frequency representation of the word (frozenset or tuple of counts) and the value is a list of words matching that frequency.",
+            "time_complexity": "O(N * K)",
+            "space_complexity": "O(N * K)",
+            "code_example": '''from collections import Counter, defaultdict
+
+def solve(words):
+    m = defaultdict(list)
+    for word in words:
+        m[frozenset(dict(Counter(word)).items())].append(word)
+    return [v for k, v in m.items()]
+
+user_input = ["cat", "dog", "tac", "edoc", "god", "code"]
+print(solve(user_input))''',
+            "code_result": "[['cat', 'tac'], ['dog', 'god'], ['edoc', 'code']]"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 4: Stack Parsing / Validation
+    # =========================================================================
+    pat_str_parsing, _ = Pattern.objects.get_or_create(
+        category=cat_string,
+        name="Stack Parsing / Validation",
+        defaults={
+            "description": "Using Stacks to validate sequences of nested pairs or mathematical expressions within a string.",
+            "use_cases": "Valid parenthesis, decode string, basic calculator"
+        }
+    )
+
+    prob_balanced_str, _ = Problem.objects.get_or_create(
+        pattern=pat_str_parsing,
+        phrase="Balanced Parentheses",
+        defaults={
+            "statement": "Given a string consisting of '(' and ')' only, check whether it is balanced or not."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_str_parsing,
+        name="Stack Matching",
+        defaults={
+            "description": "Iterate through the string. Push opening brackets to the stack. For closing brackets, pop the top of the stack and check if it matches. It is balanced if the stack is ultimately empty.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(N)",
+            "code_example": '''def check(str):
+    s = []
+    for c in str:
+        if c == '(':
+            s.append('(')
+        elif c == ')':
+            if len(s) == 0:
+                return False
+            p = s[-1]
+            if p == '(':
+                s.pop()
+            else:
+                return False
+    return len(s) == 0
+
+print(check("()(())()"))''',
+            "code_result": "True"
+        }
+    )
+
+def populate_linked_list():
+    print("Populating Category: Linked List...")
+    cat_ll, _ = Category.objects.get_or_create(name="Linked List")
+
+    # =========================================================================
+    # Pattern 1: Two Pointer (Fast & Slow)
+    # =========================================================================
+    pat_ll_two_ptr, _ = Pattern.objects.get_or_create(
+        category=cat_ll,
+        name="Two Pointer (Fast & Slow)",
+        defaults={
+            "description": "Using two pointers moving at different speeds to detect cycles or find middle nodes in a linked list.",
+            "use_cases": "Cycle detection, finding middle element, finding Nth node from end"
+        }
+    )
+
+    prob_cycle, _ = Problem.objects.get_or_create(
+        pattern=pat_ll_two_ptr,
+        phrase="Detect Cycle in Linked List",
+        defaults={
+            "statement": "Check whether a given Linked List contains a cycle/loop."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_ll_two_ptr,
+        name="Floyd's Cycle-Finding Algorithm",
+        defaults={
+            "description": "Initialize a slow and fast pointer. Move slow by one and fast by two. If they ever meet, a cycle exists.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def detectLoop(head):
+    slow_p = head
+    fast_p = head
+    while(slow_p and fast_p and fast_p.next):
+        slow_p = slow_p.next
+        fast_p = fast_p.next.next
+        if slow_p == fast_p:
+            return True
+    return False''',
+            "code_result": "True"
+        }
+    )
+
+    prob_middle, _ = Problem.objects.get_or_create(
+        pattern=pat_ll_two_ptr,
+        phrase="Find Middle Node",
+        defaults={
+            "statement": "Find the middle node of a given linked list."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_ll_two_ptr,
+        name="Fast and Slow Pointers",
+        defaults={
+            "description": "Move fast pointer by two nodes and slow pointer by one node. When fast pointer reaches the end, the slow pointer will be at the middle.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def printMiddle(head):
+    slow_ptr = head
+    fast_ptr = head
+    
+    if head is not None:
+        while fast_ptr is not None and fast_ptr.next is not None:
+            fast_ptr = fast_ptr.next.next
+            slow_ptr = slow_ptr.next
+        return slow_ptr.data
+    return -1''',
+            "code_result": "Middle Node Value"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 2: Reversal Pattern
+    # =========================================================================
+    pat_ll_reverse, _ = Pattern.objects.get_or_create(
+        category=cat_ll,
+        name="Reversal Pattern",
+        defaults={
+            "description": "Reversing list links by maintaining prev, curr, and next pointers.",
+            "use_cases": "Reverse linked list, reverse in K-groups"
+        }
+    )
+
+    prob_reverse, _ = Problem.objects.get_or_create(
+        pattern=pat_ll_reverse,
+        phrase="Reverse Linked List",
+        defaults={
+            "statement": "Reverse a linked list iteratively or recursively."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_ll_reverse,
+        name="Iterative Reversal",
+        defaults={
+            "description": "Iterate through the list. Store the next node, change current node's next to previous, then move prev and curr one step forward.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def reverseList(head):
+    prev = None
+    current = head
+    
+    while current is not None:
+        next_node = current.next
+        current.next = prev
+        prev = current
+        current = next_node
+        
+    return prev''',
+            "code_result": "Reversed List Head"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 3: Merge Pattern
+    # =========================================================================
+    pat_ll_merge, _ = Pattern.objects.get_or_create(
+        category=cat_ll,
+        name="Merge Pattern",
+        defaults={
+            "description": "Combining sorted linked lists using dummy nodes and pointer comparisons.",
+            "use_cases": "Merge two sorted lists, Merge K sorted lists"
+        }
+    )
+
+    prob_merge, _ = Problem.objects.get_or_create(
+        pattern=pat_ll_merge,
+        phrase="Merge Two Sorted Lists",
+        defaults={
+            "statement": "Merge two sorted linked lists so that the new list is also sorted."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_ll_merge,
+        name="Dummy Node Iteration",
+        defaults={
+            "description": "Use a dummy head node. Compare the heads of both lists and attach the smaller one to the dummy's tail, moving the respective pointer forward.",
+            "time_complexity": "O(N + M)",
+            "space_complexity": "O(1)",
+            "code_example": '''def mergeLists(head1, head2):
+    dummy = Node(0)
+    tail = dummy
+    
+    while head1 and head2:
+        if head1.data <= head2.data:
+            tail.next = head1
+            head1 = head1.next
+        else:
+            tail.next = head2
+            head2 = head2.next
+        tail = tail.next
+        
+    tail.next = head1 if head1 else head2
+    return dummy.next''',
+            "code_result": "Merged List Head"
+        }
+    )
+
+    # Adding to Pattern 3: Merge Pattern
+    prob_merge_k, _ = Problem.objects.get_or_create(
+        pattern=pat_ll_merge,
+        phrase="Merge K Sorted Lists",
+        defaults={
+            "statement": "Given k sorted linked lists of different sizes, merge them all maintaining their sorted order."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_ll_merge,
+        name="Divide and Conquer",
+        defaults={
+            "description": "Pair up k lists and merge each pair in linear time. After the first cycle, k/2 lists are left. Repeat the procedure until we have only one list left.",
+            "time_complexity": "O(N log K)",
+            "space_complexity": "O(1)",
+            "code_example": '''def merge_k(arr):
+    n = len(arr)
+    gap = 1
+    while gap < n:
+        for i in range(0, n - gap, gap * 2):
+            arr[i] = merge_l_list(arr[i], arr[i + gap])
+        gap *= 2
+    return arr[0] if n > 0 else None
+
+# merge_l_list is the function to merge two sorted lists (defined in previous approach)''',
+            "code_result": "Merged List Head"
+        }
+    )
+
+    # Adding to Pattern 1: Two Pointer (Fast & Slow)
+    prob_remove_nth, _ = Problem.objects.get_or_create(
+        pattern=pat_ll_two_ptr,
+        phrase="Remove Nth Node From End",
+        defaults={
+            "statement": "Given a linked list, remove the Nth node from the end of the linked list."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_ll_two_ptr,
+        name="Fast and Slow Pointer",
+        defaults={
+            "description": "Move the fast pointer N steps ahead, then move both fast and slow pointers together until fast reaches the end. The slow pointer will sit just before the target node.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def remove_nth_from_end(head, N):
+    fast = head
+    slow = head
+
+    for _ in range(N):
+        if fast is None: return head  
+        fast = fast.next
+
+    if fast is None: return head.next
+
+    while fast.next is not None:
+        fast = fast.next
+        slow = slow.next
+
+    slow.next = slow.next.next
+
+    return head''',
+            "code_result": "List Head with node removed"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 4: Linked List Math
+    # =========================================================================
+    pat_ll_math, _ = Pattern.objects.get_or_create(
+        category=cat_ll,
+        name="Linked List Math",
+        defaults={
+            "description": "Performing arithmetic operations where each node in the list represents a single digit of a number.",
+            "use_cases": "Add Two Numbers, Add 1 to number"
+        }
+    )
+
+    prob_add_one, _ = Problem.objects.get_or_create(
+        pattern=pat_ll_math,
+        phrase="Add 1 to a Number",
+        defaults={
+            "statement": "A number is represented in a linked list such that each digit corresponds to a node. Add 1 to it."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_ll_math,
+        name="Recursive Carry Addition",
+        defaults={
+            "description": "Traverse to the end recursively. Upon returning, add the carry. If a carry remains after returning to the head, create a new node and make it the head.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(N) for recursion stack",
+            "code_example": '''def addWithCarry(curr):
+    if not curr: return 1
+    res = curr.data + addWithCarry(curr.next)
+    curr.data = res % 10
+    return res // 10
+
+def addOne(head):
+    carry = addWithCarry(head)
+    if carry:
+        new_node = Node(carry)
+        new_node.next = head
+        return new_node
+    return head''',
+            "code_result": "New Head Node"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 5: In-Place Modification
+    # =========================================================================
+    pat_ll_mod, _ = Pattern.objects.get_or_create(
+        category=cat_ll,
+        name="In-Place Modification",
+        defaults={
+            "description": "Modifying, deleting, or reordering nodes in a previously built linked list without allocating new nodes.",
+            "use_cases": "Delete node, Remove duplicates, Partition list"
+        }
+    )
+
+    prob_delete_last, _ = Problem.objects.get_or_create(
+        pattern=pat_ll_mod,
+        phrase="Delete Last Occurrence of Key",
+        defaults={
+            "statement": "Given a singly linked list and a key, delete the last occurrence of that key in the linked list."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_ll_mod,
+        name="Recursive Deletion",
+        defaults={
+            "description": "Recurse to the end of the list. Return True if the node was deleted in deeper calls. If returning False and the current node matches the key, skip it.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(N) for recursion stack",
+            "code_example": '''def delete_last_occurrence_except_head(node, key):
+    next_value = None
+    if node.next:
+        deleted, next_value = delete_last_occurrence_except_head(node.next, key)
+    else:
+        deleted = False
+        
+    if not deleted:
+        if key == next_value:
+            node.next = node.next.next
+        else:
+            return False, node.data
+            
+    return True, None
+
+def delete_last_occurrence(head, key):
+    deleted, next_value = delete_last_occurrence_except_head(head.next, key)
+    if not deleted and key == head.data:
+        head = head.next
+    return head''',
+            "code_result": "List Head with target deleted"
+        }
+    )
+
+def populate_stacks_queues():
+    print("Populating Category: Stacks & Queues...")
+    cat_sq, _ = Category.objects.get_or_create(name="Stacks & Queues")
+
+    # =========================================================================
+    # Pattern 1: Monotonic Stack
+    # =========================================================================
+    pat_sq_mono, _ = Pattern.objects.get_or_create(
+        category=cat_sq,
+        name="Monotonic Stack",
+        defaults={
+            "description": "Maintaining a stack in increasing or decreasing order to efficiently find next greater or smaller elements.",
+            "use_cases": "Next greater element, largest rectangle in histogram, daily temperatures"
+        }
+    )
+
+    prob_nge, _ = Problem.objects.get_or_create(
+        pattern=pat_sq_mono,
+        phrase="Next Greater Element",
+        defaults={
+            "statement": "Given an array, print the Next Greater Element (NGE) for every element. NGE is the first greater element on the right."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_sq_mono,
+        name="Decreasing Stack",
+        defaults={
+            "description": "Iterate through the array. While the stack is not empty and the current element is greater than the top of the stack, pop from stack (current is their NGE). Then push current element.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(N)",
+            "code_example": '''def printNGE(arr):
+    s = []
+    res = [-1] * len(arr)
+    
+    for i in range(len(arr) - 1, -1, -1):
+        while s and s[-1] <= arr[i]:
+            s.pop()
+            
+        if s:
+            res[i] = s[-1]
+            
+        s.append(arr[i])
+        
+    return res
+
+arr = [4, 5, 2, 25]
+print(printNGE(arr))''',
+            "code_result": "[5, 25, 25, -1]"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 2: Expression Evaluation / Matching
+    # =========================================================================
+    pat_sq_eval, _ = Pattern.objects.get_or_create(
+        category=cat_sq,
+        name="Expression Evaluation & Matching",
+        defaults={
+            "description": "Using a stack to parse expressions, match pairs, or evaluate mathematical statements by deferring operations.",
+            "use_cases": "Balanced parentheses, postfix evaluation, basic calculator"
+        }
+    )
+
+    prob_balanced, _ = Problem.objects.get_or_create(
+        pattern=pat_sq_eval,
+        phrase="Balanced Parentheses",
+        defaults={
+            "statement": "Given an expression string consisting of parentheses '{}', '[]', '()', write a program to examine whether the pairs and the orders of the brackets are correct."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_sq_eval,
+        name="Stack Matching",
+        defaults={
+            "description": "Iterate through the string. Push opening brackets to the stack. For closing brackets, check if the stack is non-empty and the top matches the corresponding opening bracket.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(N)",
+            "code_example": '''def areBracketsBalanced(expr):
+    stack = []
+    
+    for char in expr:
+        if char in ["(", "{", "["]:
+            stack.append(char)
+        else:
+            if not stack:
+                return False
+            current_char = stack.pop()
+            if current_char == '(':
+                if char != ")": return False
+            if current_char == '{':
+                if char != "}": return False
+            if current_char == '[':
+                if char != "]": return False
+
+    return len(stack) == 0
+
+expr = "{()}[]"
+print(areBracketsBalanced(expr))''',
+            "code_result": "True"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 3: Queue-Based Design
+    # =========================================================================
+    pat_sq_design, _ = Pattern.objects.get_or_create(
+        category=cat_sq,
+        name="Queue/Stack Architecture Design",
+        defaults={
+            "description": "Implementing one data structure using the properties of another, or designing specialized buffers.",
+            "use_cases": "Queue using Stacks, LRU cache, Circular Queue"
+        }
+    )
+
+    prob_queue_stacks, _ = Problem.objects.get_or_create(
+        pattern=pat_sq_design,
+        phrase="Implement Queue using Stacks",
+        defaults={
+            "statement": "Implement the operations of a queue (enqueue and dequeue) using only a stack data structure."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_sq_design,
+        name="Two Stacks (Dequeue Heavy / Enqueue Heavy)",
+        defaults={
+            "description": "Maintain two stacks (s1 and s2). For enqueue heavy: push to s1. On dequeue, if s2 is empty, pop all from s1 and push to s2, then pop s2.",
+            "time_complexity": "O(1) amortized for push/pop",
+            "space_complexity": "O(N)",
+            "code_example": '''class Queue:
+    def __init__(self):
+        self.s1 = []
+        self.s2 = []
+
+    def enQueue(self, x):
+        self.s1.append(x)
+
+    def deQueue(self):
+        if len(self.s1) == 0 and len(self.s2) == 0:
+            return -1
+            
+        if len(self.s2) == 0:
+            while len(self.s1) != 0:
+                self.s2.append(self.s1[-1])
+                self.s1.pop()
+                
+        return self.s2.pop()
+
+q = Queue()
+q.enQueue(1)
+q.enQueue(2)
+q.enQueue(3)
+print(q.deQueue())
+print(q.deQueue())''',
+            "code_result": "1\n2"
+        }
+    )
+
+    # Adding to Pattern 2: Expression Evaluation / Matching
+    prob_infix, _ = Problem.objects.get_or_create(
+        pattern=pat_sq_eval,
+        phrase="Infix to Postfix expression conversion",
+        defaults={
+            "statement": "Write a program to convert an Infix expression to Postfix form."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_sq_eval,
+        name="Stack for Operators",
+        defaults={
+            "description": "Iterate through the string. Push operators to the stack based on precedence. Append operands to the result.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(N)",
+            "code_example": '''def infix_to_postfix(string):
+    result = []
+    stack = []
+    for c in string:
+        if ('a' <= c <= 'z') or ('A' <= c <= 'Z') or ('0' <= c <= '9'):
+            result.append(c)
+        elif c == '(':
+            stack.append(c)
+        elif c == ')':
+            while stack and stack[-1] != '(':
+                result.append(stack.pop())
+            stack.pop()
+        else:
+            while stack and (precedence(c) <= precedence(stack[-1])):
+                if precedence(c) == precedence(stack[-1]) and associativity(c) == 'R':
+                    break
+                result.append(stack.pop())
+            stack.append(c)
+    while stack:
+        result.append(stack.pop())
+    return "".join(result)''',
+            "code_result": "Postfix string"
+        }
+    )
+
+    prob_longest_valid_paren, _ = Problem.objects.get_or_create(
+        pattern=pat_sq_eval,
+        phrase="Longest Valid Parentheses",
+        defaults={
+            "statement": "Given a string consisting of opening and closing parenthesis, find the length of the longest valid parenthesis substring."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_sq_eval,
+        name="Index Tracking Stack",
+        defaults={
+            "description": "Push -1 to stack as a base. For '(', push index. For ')', pop. If stack is empty, push current index as new base. Else update max length with current index - stack top.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(N)",
+            "code_example": '''def maxLength(s):
+    stack = [-1]
+    max_len = 0
+    for i in range(len(s)):
+        if s[i] == '(':
+            stack.append(i)
+        else:
+            stack.pop()
+            if not stack:
+                stack.append(i)
+            else:
+                max_len = max(max_len, i - stack[-1])
+    return max_len
+
+print(maxLength("())(())(()"))''',
+            "code_result": "4"
+        }
+    )
+
+    # Adding to Pattern 3: Queue-Based Design
+    prob_delete_mid, _ = Problem.objects.get_or_create(
+        pattern=pat_sq_design,
+        phrase="Delete Middle Element of a Stack",
+        defaults={
+            "statement": "Delete the middle element of a stack without using any additional data structure other than another stack."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_sq_design,
+        name="Using an Auxiliary Stack",
+        defaults={
+            "description": "Pop all elements to a new stack to count size. Calculate mid. Transfer them back, skipping the mid element.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(N)",
+            "code_example": '''def delete_middle(st):
+    size = 0
+    nst = stack()
+    while not st.empty():
+        nst.push(st.pop())
+        size += 1
+    
+    mid = size // 2 if size % 2 else (size // 2) - 1
+    while not nst.empty():
+        size -= 1
+        el = nst.pop()
+        if size != mid:
+            st.push(el)
+    return st''',
+            "code_result": "Stack with middle element removed"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 4: Level Order / Queue
+    # =========================================================================
+    pat_sq_queue, _ = Pattern.objects.get_or_create(
+        category=cat_sq,
+        name="Queue Traversals & Simulation",
+        defaults={
+            "description": "Using a Queue data structure to model sliding windows, level-order iterations, or circular loops.",
+            "use_cases": "Level Order, Circular Tour"
+        }
+    )
+
+    prob_right_view, _ = Problem.objects.get_or_create(
+        pattern=pat_sq_queue,
+        phrase="Right View of Binary Tree",
+        defaults={
+            "statement": "Print the right view of a Binary Tree (the rightmost nodes for every level)."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_sq_queue,
+        name="DFS with Level Tracking",
+        defaults={
+            "description": "Can be done using Queue (Level order) taking the last element of each level, or DFS keeping track of the first seen node at each level (visiting right child first).",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(H) or O(W)",
+            "code_example": '''def right_view(root):
+    lvl_set = {}
+    def dfs(node, lvl=0):
+        if not node: return
+        if lvl not in lvl_set:
+            lvl_set[lvl] = node.data
+        dfs(node.right, lvl + 1)
+        dfs(node.left, lvl + 1)
+        
+    dfs(root)
+    return list(lvl_set.values())''',
+            "code_result": "[1, 3, 5]"
+        }
+    )
+
+    prob_celebrity, _ = Problem.objects.get_or_create(
+        pattern=pat_sq_queue,
+        phrase="The Celebrity Problem",
+        defaults={
+            "statement": "In a party of N people, find if there is a celebrity. A celebrity is known to all but does not know anyone."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_sq_queue,
+        name="Two Pointers / Stack Elimination",
+        defaults={
+            "description": "Have two pointers i=0, j=n-1. If i knows j, i cannot be a celebrity (i++). If i does not know j, j cannot be a celebrity (j--). Verify the remaining candidate.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def get_celebrity(mat):
+    n = len(mat)
+    i = 0
+    j = n - 1
+    while i < j:
+        if mat[i][j] == 1:
+            i += 1
+        else:
+            j -= 1
+            
+    # Verify candidate i
+    for x in range(n):
+        if i == x: continue
+        if mat[i][x] == 1 or mat[x][i] == 0:
+            return -1
+    return i''',
+            "code_result": "Index of Celebrity"
+        }
+    )
+
+    prob_circular_tour, _ = Problem.objects.get_or_create(
+        pattern=pat_sq_queue,
+        phrase="Circular Tour (Petrol Pumps)",
+        defaults={
+            "statement": "Given distance to next pump and fuel capacity at current, find the starting index to complete a full circular tour."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_sq_queue,
+        name="Greedy Sub-tour validation",
+        defaults={
+            "description": "Keep track of current fuel. If it drops below zero, the starting point cannot be any of the visited pumps, so reset start to the next pump.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def FindStart(arr):
+    fuel = 0
+    start_node = 0
+    total_deficit = 0
+    
+    for i in range(len(arr)):
+        fuel += arr[i][0] - arr[i][1]
+        if fuel < 0:
+            start_node = i + 1
+            total_deficit += fuel
+            fuel = 0
+            
+    return start_node if (fuel + total_deficit) >= 0 else -1''',
+            "code_result": "Starting Index"
+        }
+    )
+
+
+def populate_trees():
+    print("Populating Category: Trees...")
+    cat_tree, _ = Category.objects.get_or_create(name="Tree")
+
+    # =========================================================================
+    # Pattern 1: DFS Traversals
+    # =========================================================================
+    pat_tree_dfs, _ = Pattern.objects.get_or_create(
+        category=cat_tree,
+        name="DFS Traversals",
+        defaults={
+            "description": "Processing all nodes by exploring as far as possible along each branch before backtracking.",
+            "use_cases": "Inorder (sorted output for BST), Preorder, Postorder traversals"
+        }
+    )
+
+    prob_inorder, _ = Problem.objects.get_or_create(
+        pattern=pat_tree_dfs,
+        phrase="Inorder Traversal",
+        defaults={
+            "statement": "Perform inorder traversal of a binary tree (Left, Root, Right)."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_tree_dfs,
+        name="Recursive DFS",
+        defaults={
+            "description": "Recursively call inorder on left child, process current node, then recursively call inorder on right child.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(H) recursion stack",
+            "code_example": '''def printInorder(root):
+    if root:
+        printInorder(root.left)
+        print(root.val, end=" ")
+        printInorder(root.right)
+        
+# Assuming Node class exists
+# root = Node(1) ...
+# printInorder(root)''',
+            "code_result": "Inorder traversal printed"
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_tree_dfs,
+        name="Iterative DFS (using Stack)",
+        defaults={
+            "description": "Use an explicit stack to simulate recursion. Traverse to the leftmost node, pushing to stack. Then pop, process, and move to right child.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(H)",
+            "code_example": '''def inOrder(root):
+    current = root 
+    stack = [] 
+    
+    while True:
+        if current is not None:
+            stack.append(current)
+            current = current.left 
+        elif stack:
+            current = stack.pop()
+            print(current.data, end=" ")
+            current = current.right 
+        else:
+            break''',
+            "code_result": "Inorder traversal printed iteratively"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 2: BFS (Level Order)
+    # =========================================================================
+    pat_tree_bfs, _ = Pattern.objects.get_or_create(
+        category=cat_tree,
+        name="BFS (Level Order)",
+        defaults={
+            "description": "Processing the tree level by level using a queue.",
+            "use_cases": "Level order traversal, finding minimum depth, zig-zag traversal"
+        }
+    )
+
+    prob_level_order, _ = Problem.objects.get_or_create(
+        pattern=pat_tree_bfs,
+        phrase="Level Order Traversal",
+        defaults={
+            "statement": "Traverse the tree nodes level by level, from left to right."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_tree_bfs,
+        name="Queue Implementation",
+        defaults={
+            "description": "Push root to queue. While queue is not empty, dequeue a node, process it, and enqueue its left and right children.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(W) maximum width of tree",
+            "code_example": '''def printLevelOrder(root):
+    if root is None:
+        return
+        
+    queue = []
+    queue.append(root)
+    
+    while len(queue) > 0:
+        print(queue[0].data, end=" ")
+        node = queue.pop(0)
+        
+        if node.left is None:
+            pass # Or handle specific logic
+        else:
+            queue.append(node.left)
+            
+        if node.right is None:
+            pass
+        else:
+            queue.append(node.right)''',
+            "code_result": "Nodes printed level by level"
+        }
+    )
+
+    prob_max_depth, _ = Problem.objects.get_or_create(
+        pattern=pat_tree_bfs,
+        phrase="Maximum Depth of Binary Tree",
+        defaults={
+            "statement": "Find the depth or height of a binary tree (number of nodes along the longest path)."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_tree_bfs,
+        name="Recursive Depth (DFS approach on Height)",
+        defaults={
+            "description": "Base case: if root is None, return 0. Else, return 1 + max(depth of left, depth of right).",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(H)",
+            "code_example": '''def maxDepth(node):
+    if node is None:
+        return 0
+    else:
+        lDepth = maxDepth(node.left)
+        rDepth = maxDepth(node.right)
+        
+        if lDepth > rDepth:
+            return lDepth + 1
+        else:
+            return rDepth + 1''',
+            "code_result": "Integer representing max depth"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 3: Tree Properties & Validation
+    # =========================================================================
+    pat_tree_prop, _ = Pattern.objects.get_or_create(
+        category=cat_tree,
+        name="Tree Properties & Validation",
+        defaults={
+            "description": "Checking global conditions across tree nodes using recursion while passing down constraints or bubbling up states.",
+            "use_cases": "Checking BST, Balanced Tree, Diameter"
+        }
+    )
+
+    prob_valid_bst, _ = Problem.objects.get_or_create(
+        pattern=pat_tree_prop,
+        phrase="Validate Binary Search Tree",
+        defaults={
+            "statement": "Determine if a binary tree is a valid BST (left children < parent, right children > parent, recursively)."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_tree_prop,
+        name="Min/Max Range Checking",
+        defaults={
+            "description": "Recursively pass down a valid range [min, max] for each node. Left child gets [min, parent.val-1], right gets [parent.val+1, max].",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(H)",
+            "code_example": '''INT_MAX = 4294967296
+INT_MIN = -4294967296
+
+def isBSTUtil(node, mini, maxi):
+    if node is None:
+        return True
+        
+    if node.data < mini or node.data > maxi:
+        return False
+        
+    return (isBSTUtil(node.left, mini, node.data - 1) and
+            isBSTUtil(node.right, node.data + 1, maxi))
+
+def isBST(node):
+    return isBSTUtil(node, INT_MIN, INT_MAX)''',
+            "code_result": "True or False"
+        }
+    )
+    
+    Approach.objects.get_or_create(
+        pattern=pat_tree_prop,
+        name="Inorder Validation",
+        defaults={
+            "description": "Perform an inorder traversal and maintain a pointer to the previously visited node. If the current node is less than the previous node, it's not a BST.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(H)",
+            "code_example": '''prev = None
+
+def isBST_Inorder(root):
+    global prev
+    if root:
+        if not isBST_Inorder(root.left):
+            return False
+            
+        if prev is not None and root.data <= prev.data:
+            return False
+            
+        prev = root
+        
+        return isBST_Inorder(root.right)
+        
+    return True''',
+            "code_result": "True or False"
+        }
+    )
+
+    prob_diameter, _ = Problem.objects.get_or_create(
+        pattern=pat_tree_prop,
+        phrase="Diameter of a Binary Tree",
+        defaults={
+            "statement": "Find the length of the longest path between any two nodes in a tree."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_tree_prop,
+        name="Height-based Calculation",
+        defaults={
+            "description": "The diameter through a node is the height of left subtree + height of right subtree + 1. Recursively calculate this and track the max global diameter.",
+            "time_complexity": "O(N^2) (or O(N) if optimized)",
+            "space_complexity": "O(H)",
+            "code_example": '''def height(node):
+    if node is None: return 0
+    return 1 + max(height(node.left), height(node.right))
+
+def diameter(root):
+    if root is None: return 0
+    
+    lheight = height(root.left)
+    rheight = height(root.right)
+    
+    ldiameter = diameter(root.left)
+    rdiameter = diameter(root.right)
+    
+    return max(lheight + rheight + 1, max(ldiameter, rdiameter))''',
+            "code_result": "Integer representing diameter"
+        }
+    )
+
+    # Adding to Pattern 3: Tree Properties & Validation
+    prob_identical, _ = Problem.objects.get_or_create(
+        pattern=pat_tree_prop,
+        phrase="Identical Trees",
+        defaults={
+            "statement": "Check if two trees are identical in structure and data."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_tree_prop,
+        name="Simultaneous DFS Traversal",
+        defaults={
+            "description": "Traverse both trees simultaneously. If both nodes are null, return True. If both are non-null and data matches, recurse left and right. Otherwise False.",
+            "time_complexity": "O(min(N, M))",
+            "space_complexity": "O(min(H_1, H_2))",
+            "code_example": '''def isSameStructure(a, b):
+    if a is None and b is None:
+        return True
+    if a is not None and b is not None:
+        return (a.data == b.data and 
+                isSameStructure(a.left, b.left) and 
+                isSameStructure(a.right, b.right))
+    return False''',
+            "code_result": "True or False"
+        }
+    )
+
+    prob_max_path_sum, _ = Problem.objects.get_or_create(
+        pattern=pat_tree_prop,
+        phrase="Maximum Path Sum",
+        defaults={
+            "statement": "Given a binary tree, find the maximum path sum. The path may start and end at any node."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_tree_prop,
+        name="DFS with Path Top and Path Single Tracker",
+        defaults={
+            "description": "For each node, compute the max path from left and right. Update an overall max sum which includes (left + right + node.data), but return to the parent node only the max linear path (node + max(left, right)).",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(H)",
+            "code_example": '''def findMaxUtil(root, res):
+    if root is None: return 0
+    
+    l = findMaxUtil(root.left, res)
+    r = findMaxUtil(root.right, res)
+    
+    max_single = max(max(l, r) + root.data, root.data)
+    max_top = max(max_single, l + r + root.data)
+    res[0] = max(res[0], max_top)
+    
+    return max_single
+
+def findMaxSum(root):
+    res = [float("-inf")]
+    findMaxUtil(root, res)
+    return res[0]''',
+            "code_result": "Integer representing max sum"
+        }
+    )
+
+    prob_subtree, _ = Problem.objects.get_or_create(
+        pattern=pat_tree_prop,
+        phrase="Subtree of Another Tree",
+        defaults={
+            "statement": "Given two binary trees, check if the first tree is a subtree of the second one."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_tree_prop,
+        name="Traversal + Identical Check",
+        defaults={
+            "description": "Traverse the first tree. At every node, if the node data matches the root of the second tree, trigger an 'areIdentical' check. If it matches, return true. Otherwise search in left and right.",
+            "time_complexity": "O(N * M)",
+            "space_complexity": "O(H)",
+            "code_example": '''def areIdentical(root1, root2):
+    if root1 is None and root2 is None: return True
+    if root1 is None or root2 is None: return False
+    return (root1.data == root2.data and 
+            areIdentical(root1.left, root2.left) and 
+            areIdentical(root1.right, root2.right))
+
+def isSubtree(root1, root2):
+    if root2 is None: return True
+    if root1 is None: return False
+    
+    if areIdentical(root1, root2):
+        return True
+        
+    return isSubtree(root1.left, root2) or isSubtree(root1.right, root2)''',
+            "code_result": "True or False"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 4: Tree Construction / Serialization
+    # =========================================================================
+    pat_tree_construct, _ = Pattern.objects.get_or_create(
+        category=cat_tree,
+        name="Tree Construction & Serialization",
+        defaults={
+            "description": "Building a tree from arrays, traversals, or strings.",
+            "use_cases": "Serialize tree, Construct Tree from Preorder & Inorder"
+        }
+    )
+
+    prob_serialize, _ = Problem.objects.get_or_create(
+        pattern=pat_tree_construct,
+        phrase="Serialize and Deserialize Binary Tree",
+        defaults={
+            "statement": "Design an algorithm to serialize and deserialize a binary tree."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_tree_construct,
+        name="Preorder Traversal with Null Markers",
+        defaults={
+            "description": "Serialize by doing a preorder traversal, appending '#' for null nodes. Deserialize by splitting the string and rebuilding recursively from left to right.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(N)",
+            "code_example": '''class Codec:
+    def serialize(self, root):
+        def dfs(node):
+            if not node:
+                result.append("#")
+                return
+            result.append(str(node.val))
+            dfs(node.left)
+            dfs(node.right)
+        result = []
+        dfs(root)
+        return ",".join(result)
+
+    def deserialize(self, data):
+        def dfs():
+            val = next(values)
+            if val == "#": return None
+            node = TreeNode(int(val))
+            node.left = dfs()
+            node.right = dfs()
+            return node
+        values = iter(data.split(","))
+        return dfs()''',
+            "code_result": "Serialized String / Tree root"
+        }
+    )
+
+    prob_construct, _ = Problem.objects.get_or_create(
+        pattern=pat_tree_construct,
+        phrase="Construct Tree from Inorder and Preorder",
+        defaults={
+            "statement": "Given in-order and pre-order traversals of a Binary Tree, construct the Binary Tree."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_tree_construct,
+        name="Recursive Array Slicing mapped by Hash",
+        defaults={
+            "description": "Take first element of preorder as root. Find its index in inorder array. Elements to the left form left subtree, to the right form right subtree. Recursively build child nodes.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(N)",
+            "code_example": '''def buildTree(preorder, inorder):
+    inorder_index = {val: i for i, val in enumerate(inorder)}
+    
+    def build(start, end, pre_iter):
+        if start > end: return None
+        
+        root_val = next(pre_iter)
+        node = Node(root_val)
+        
+        idx = inorder_index[root_val]
+        node.left = build(start, idx - 1, pre_iter)
+        node.right = build(idx + 1, end, pre_iter)
+        return node
+        
+    return build(0, len(inorder)-1, iter(preorder))''',
+            "code_result": "Root node of built tree"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 5: Binary Search Tree (BST) Logic
+    # =========================================================================
+    pat_tree_bst, _ = Pattern.objects.get_or_create(
+        category=cat_tree,
+        name="Binary Search Tree Characteristics",
+        defaults={
+            "description": "Leveraging the property of BST where left < root < right.",
+            "use_cases": "LCA of BST, Kth smallest element"
+        }
+    )
+
+    prob_kth_small, _ = Problem.objects.get_or_create(
+        pattern=pat_tree_bst,
+        phrase="Kth Smallest Element in BST",
+        defaults={
+            "statement": "Given a Binary Search Tree and a positive integer k, find the kth smallest element."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_tree_bst,
+        name="Inorder Traversal",
+        defaults={
+            "description": "An inorder traversal in BST returns elements in sorted order. Traverse inorder, incrementing a counter, stop and return the element when count equals K.",
+            "time_complexity": "O(H + K)",
+            "space_complexity": "O(H)",
+            "code_example": '''def kthSmallest(root, k):
+    res = None
+    count = 0
+    def inorder(node):
+        nonlocal count, res
+        if not node or res is not None:
+            return
+        inorder(node.left)
+        count += 1
+        if count == k:
+            res = node.val
+            return
+        inorder(node.right)
+        
+    inorder(root)
+    return res''',
+            "code_result": "Kth smallest integer"
+        }
+    )
+
+    prob_lca_bst, _ = Problem.objects.get_or_create(
+        pattern=pat_tree_bst,
+        phrase="LCA of BST",
+        defaults={
+            "statement": "Given two values in a BST, find the Lowest Common Ancestor (LCA)."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_tree_bst,
+        name="Iterative/Recursive Path Split",
+        defaults={
+            "description": "Navigate down from root. If both nodes are smaller, go left. If both are larger, go right. As soon as split happens or current equals one, we've found LCA.",
+            "time_complexity": "O(H)",
+            "space_complexity": "O(1) iteratively",
+            "code_example": '''def findLCA(root, n1, n2):
+    while root:
+        if root.val > n1 and root.val > n2:
+            root = root.left
+        elif root.val < n1 and root.val < n2:
+            root = root.right
+        else:
+            break
+    return root''',
+            "code_result": "LCA Node"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 6: Trie (Prefix Tree)
+    # =========================================================================
+    pat_trie, _ = Pattern.objects.get_or_create(
+        category=cat_tree,
+        name="Trie (Prefix Tree)",
+        defaults={
+            "description": "Data structure for efficient retrieval of keys in a dataset of strings.",
+            "use_cases": "Autocomplete, Spell checker, Word matching"
+        }
+    )
+
+    prob_trie, _ = Problem.objects.get_or_create(
+        pattern=pat_trie,
+        phrase="Implement Trie (Prefix Tree)",
+        defaults={
+            "statement": "Implement Trie with insert, search, and startsWith methods."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_trie,
+        name="Dictionary-based Children mapping",
+        defaults={
+            "description": "Each node maintains a dictionary of characters leading to child nodes and an isEndOfWord boolean flag.",
+            "time_complexity": "O(L) per word insert/search where L is word length.",
+            "space_complexity": "O(L) per word storage",
+            "code_example": '''class TrieNode:
+    def __init__(self):
+        self.children = {}
+        self.isEndOfWord = False
+
+class Trie:
+    def __init__(self):
+        self.root = TrieNode()
+        
+    def insert(self, word):
+        node = self.root
+        for char in word:
+            if char not in node.children:
+                node.children[char] = TrieNode()
+            node = node.children[char]
+        node.isEndOfWord = True
+        
+    def search(self, word):
+        node = self.root
+        for char in word:
+            if char not in node.children:
+                return False
+            node = node.children[char]
+        return node.isEndOfWord
+        
+    def startsWith(self, prefix):
+        node = self.root
+        for char in prefix:
+            if char not in node.children:
+                return False
+            node = node.children[char]
+        return True''',
+            "code_result": "Trie implementation capable of text matching"
+        }
+    )
+
+
+def populate_heaps():
+    print("Populating Category: Heaps & Priority Queues...")
+    cat_heap, _ = Category.objects.get_or_create(name="Heaps and Priority Queues")
+
+    # =========================================================================
+    # Pattern 1: Top/Bottom K Elements
+    # =========================================================================
+    pat_heap_topk, _ = Pattern.objects.get_or_create(
+        category=cat_heap,
+        name="Top / Bottom K Elements",
+        defaults={
+            "description": "Finding the k-th largest or smallest elements, or the top k frequent elements, using a heap (Priority Queue) of size k to optimize space and time.",
+            "use_cases": "Kth largest element, Top K frequent elements, K closest points"
+        }
+    )
+
+    prob_kth_largest, _ = Problem.objects.get_or_create(
+        pattern=pat_heap_topk,
+        phrase="Kth Largest Element in an Array",
+        defaults={
+            "statement": "Find the kth largest element in an unsorted array. Note that it is the kth largest element in the sorted order, not the kth distinct element."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_heap_topk,
+        name="Min-Heap of Size K",
+        defaults={
+            "description": "Maintain a min-heap of size K. Iterate through the array. If the current element is larger than the root of the heap (the smallest in the top K), pop the root and push the current element. The root will be the Kth largest.",
+            "time_complexity": "O(N log K)",
+            "space_complexity": "O(K)",
+            "code_example": '''import heapq
+
+def findKthLargest(nums, k):
+    min_heap = []
+    
+    for num in nums:
+        heapq.heappush(min_heap, num)
+        if len(min_heap) > k:
+            heapq.heappop(min_heap)
+            
+    return min_heap[0]
+
+nums = [3, 2, 1, 5, 6, 4]
+k = 2
+print(findKthLargest(nums, k))''',
+            "code_result": "5"
+        }
+    )
+
+    prob_top_k_freq, _ = Problem.objects.get_or_create(
+        pattern=pat_heap_topk,
+        phrase="Top K Frequent Elements",
+        defaults={
+            "statement": "Given an integer array nums and an integer k, return the k most frequent elements."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_heap_topk,
+        name="Frequency Map + Min-Heap",
+        defaults={
+            "description": "Count frequencies using a map. Then push pairs of (frequency, element) into a min-heap of size k. Return the elements from the heap.",
+            "time_complexity": "O(N log K)",
+            "space_complexity": "O(N)",
+            "code_example": '''import heapq
+from collections import Counter
+
+def topKFrequent(nums, k):
+    freq_map = Counter(nums)
+    min_heap = []
+    
+    for num, freq in freq_map.items():
+        heapq.heappush(min_heap, (freq, num))
+        if len(min_heap) > k:
+            heapq.heappop(min_heap)
+            
+    # Extract elements from the heap
+    return [item[1] for item in min_heap]
+
+nums = [1, 1, 1, 2, 2, 3]
+k = 2
+print(topKFrequent(nums, k))''',
+            "code_result": "[2, 1]"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 2: Merge K Pattern
+    # =========================================================================
+    pat_heap_mergek, _ = Pattern.objects.get_or_create(
+        category=cat_heap,
+        name="Merge K Sorted Pattern",
+        defaults={
+            "description": "Merging multiple sorted structures (like lists or arrays) into a single sorted structure using a min-heap to keep track of the smallest current elements across all structures.",
+            "use_cases": "Merge K sorted lists, Merge K sorted arrays"
+        }
+    )
+
+    prob_merge_k, _ = Problem.objects.get_or_create(
+        pattern=pat_heap_mergek,
+        phrase="Merge K Sorted Arrays",
+        defaults={
+            "statement": "Given K sorted arrays of size N each, merge them and print the sorted output."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_heap_mergek,
+        name="Min-Heap tracking Pointer Overlap",
+        defaults={
+            "description": "Insert the first element of each array into a min-heap along with its array index and element index. Pop the smallest, add to result, and push the next element from the same array.",
+            "time_complexity": "O(N * K * log K)",
+            "space_complexity": "O(K)",
+            "code_example": '''import heapq
+
+def mergeKArrays(arr):
+    min_heap = []
+    result = []
+    
+    # Insert first element of each array (value, row, col)
+    for i in range(len(arr)):
+        if len(arr[i]) > 0:
+            heapq.heappush(min_heap, (arr[i][0], i, 0))
+            
+    while min_heap:
+        val, row, col = heapq.heappop(min_heap)
+        result.append(val)
+        
+        # If there are more elements in the same array, push the next one
+        if col + 1 < len(arr[row]):
+            heapq.heappush(min_heap, (arr[row][col + 1], row, col + 1))
+            
+    return result
+
+arr = [
+    [2, 6, 12, 34],
+    [1, 9, 20, 1000],
+    [23, 34, 90, 2000]
+]
+print(mergeKArrays(arr))''',
+            "code_result": "[1, 2, 6, 9, 12, 20, 23, 34, 34, 90, 1000, 2000]"
+        }
+    )
+
+    # Adding to Pattern 1: Top / Bottom K Elements
+    prob_k_largest_prod, _ = Problem.objects.get_or_create(
+        pattern=pat_heap_topk,
+        phrase="Multiplication of K Largest Elements in Stream",
+        defaults={
+            "statement": "Given a stream of integers, print the product of the largest, second largest, and third largest element seen so far at every index."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_heap_topk,
+        name="Min-Heap of Size K Tracker",
+        defaults={
+            "description": "Maintain a min-heap of size K. If a new stream element is larger than the root, replace the root. Re-calculate running product.",
+            "time_complexity": "O(N log K)",
+            "space_complexity": "O(K)",
+            "code_example": '''import heapq
+def stream_k_largest_product(arr, k):
+    min_heap = []
+    running_product = 1
+    for num in arr:
+        if len(min_heap) < k:
+            heapq.heappush(min_heap, num)
+            running_product *= num
+        else:
+            if num > min_heap[0]:
+                smallest = heapq.heappop(min_heap)
+                running_product = (running_product // smallest) * num
+                heapq.heappush(min_heap, num)
+        
+        if len(min_heap) < k:
+            print(-1)
+        else:
+            print(running_product)''',
+            "code_result": "Stream of products printed sequentially"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 3: Two Heaps
+    # =========================================================================
+    pat_heap_two, _ = Pattern.objects.get_or_create(
+        category=cat_heap,
+        name="Two Heaps Pattern",
+        defaults={
+            "description": "Using two heaps (a min-heap and a max-heap) simultaneously to partition data, commonly used to keep track of a moving median.",
+            "use_cases": "Stream Median, Sliding Window Median"
+        }
+    )
+
+    prob_stream_median, _ = Problem.objects.get_or_create(
+        pattern=pat_heap_two,
+        phrase="Find Median from Data Stream",
+        defaults={
+            "statement": "Given a continuous stream of integers, output the median after every insertion."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_heap_two,
+        name="Max-Heap and Min-Heap Synchronization",
+        defaults={
+            "description": "Keep smaller half of sizes in max-heap and larger half in min-heap. Maintain size difference <= 1.",
+            "time_complexity": "O(N log N)",
+            "space_complexity": "O(N)",
+            "code_example": '''import heapq
+def stream_median(arr):
+    min_heap = [] # stores larger half
+    max_heap = [] # stores smaller half (negated values)
+    
+    for num in arr:
+        heapq.heappush(max_heap, -num)
+        
+        # Balance by moving largest in max_heap to min_heap
+        heapq.heappush(min_heap, -heapq.heappop(max_heap))
+        
+        # Ensure max_heap >= min_heap
+        if len(min_heap) > len(max_heap):
+            heapq.heappush(max_heap, -heapq.heappop(min_heap))
+            
+        if len(max_heap) > len(min_heap):
+            median = -max_heap[0]
+        else:
+            median = (-max_heap[0] + min_heap[0]) / 2.0
+            
+        print(f"Median: {median}")''',
+            "code_result": "Stream of medians printed sequentially"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 4: Greedy Priority Queue
+    # =========================================================================
+    pat_heap_greedy, _ = Pattern.objects.get_or_create(
+        category=cat_heap,
+        name="Greedy Priority Queue",
+        defaults={
+            "description": "Using a min-heap to repeatedly pop the smallest components and combine them until one combined structure remains.",
+            "use_cases": "Connect Ropes, File Merging, Huffman Encoding"
+        }
+    )
+
+    prob_ropes, _ = Problem.objects.get_or_create(
+        pattern=pat_heap_greedy,
+        phrase="Connect N Ropes with Minimum Cost",
+        defaults={
+            "statement": "Given array of rope lengths, connect all ropes into a single rope with minimum cost. Cost to connect is sum of their lengths."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_heap_greedy,
+        name="Extract Two Minimums (Huffman-style)",
+        defaults={
+            "description": "Min-heapify array. While heap size > 1, pop two shortest ropes, add their sum to total cost, and push sum back to heap.",
+            "time_complexity": "O(N log N)",
+            "space_complexity": "O(1) in-place or O(N)",
+            "code_example": '''import heapq
+def minCost(arr):
+    heapq.heapify(arr)
+    res = 0
+    while len(arr) > 1:
+        first = heapq.heappop(arr)
+        second = heapq.heappop(arr)
+        cost = first + second
+        res += cost
+        heapq.heappush(arr, cost)
+    return res''',
+            "code_result": "Integer representing minimum connection cost"
+        }
+    )
+
+
+def populate_graphs():
+    print("Populating Category: Graphs...")
+    cat_graph, _ = Category.objects.get_or_create(name="Graphs")
+
+    # =========================================================================
+    # Pattern 1: Graph Traversal (BFS/DFS)
+    # =========================================================================
+    pat_graph_trav, _ = Pattern.objects.get_or_create(
+        category=cat_graph,
+        name="Graph Traversal (BFS/DFS)",
+        defaults={
+            "description": "Systematically exploring vertices and edges in a graph. BFS explores level by level (queues), DFS goes deep first (recursion/stack).",
+            "use_cases": "Cycle detection, shortest unweighted path, connected components"
+        }
+    )
+
+    prob_dfs_graph, _ = Problem.objects.get_or_create(
+        pattern=pat_graph_trav,
+        phrase="DFS of Graph",
+        defaults={
+            "statement": "Given a connected undirected graph, return a list containing the DFS traversal of the graph starting from vertex 0."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_graph_trav,
+        name="Recursive DFS",
+        defaults={
+            "description": "Maintain a boolean array 'visited'. Call the recursive logic for the current node, mark it visited, then iterate over its adjacent nodes. If an adjacent node is unvisited, recurse.",
+            "time_complexity": "O(V + E)",
+            "space_complexity": "O(V)",
+            "code_example": '''def dfsOfGraph(V, adj):
+    ans = []
+    visited = [False] * V
+    
+    def dfsRec(visited, s, ans):
+        visited[s] = True
+        ans.append(s)
+        
+        for i in adj[s]:
+            if not visited[i]:
+                dfsRec(visited, i, ans)
+                
+    dfsRec(visited, 0, ans)
+    return ans''',
+            "code_result": "List of nodes visited in DFS order"
+        }
+    )
+
+    prob_bfs_graph, _ = Problem.objects.get_or_create(
+        pattern=pat_graph_trav,
+        phrase="BFS of Graph",
+        defaults={
+            "statement": "Given a connected undirected graph, return a list containing the BFS traversal of the graph starting from vertex 0."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_graph_trav,
+        name="Queue-based BFS",
+        defaults={
+            "description": "Initialize a queue and a 'visited' array. Enqueue the start node and mark it visited. While queue is not empty, dequeue, process, and enqueue all unvisited adjacent nodes.",
+            "time_complexity": "O(V + E)",
+            "space_complexity": "O(V)",
+            "code_example": '''def bfsOfGraph(V, adj):
+    ans = []
+    visited = [False] * V
+    
+    queue = []
+    visited[0] = True
+    queue.append(0)
+    
+    while queue:
+        s = queue.pop(0)
+        ans.append(s)
+        
+        for i in adj[s]:
+            if not visited[i]:
+                visited[i] = True
+                queue.append(i)
+                
+    return ans''',
+            "code_result": "List of nodes visited in BFS order"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 2: Topological Sort
+    # =========================================================================
+    pat_graph_topo, _ = Pattern.objects.get_or_create(
+        category=cat_graph,
+        name="Topological Sort",
+        defaults={
+            "description": "Ordering vertices in a directed acyclic graph (DAG) such that for every directed edge u -> v, vertex u comes before v.",
+            "use_cases": "Course schedule dependencies, Task ordering, Build systems"
+        }
+    )
+
+    prob_topo_sort, _ = Problem.objects.get_or_create(
+        pattern=pat_graph_topo,
+        phrase="Topological Sort",
+        defaults={
+            "statement": "Given a Directed Acyclic Graph (DAG) with V vertices and E edges, Find any Topological Sorting of that Graph."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_graph_topo,
+        name="DFS with Stack",
+        defaults={
+            "description": "Run standard DFS but instead of simply returning, push the current vertex onto a stack ONLY after recursively visiting all its adjacent vertices.",
+            "time_complexity": "O(V + E)",
+            "space_complexity": "O(V)",
+            "code_example": '''def topologicalSort(V, adj):
+    visited = [False] * V
+    stack = []
+    
+    def topologicalSortUtil(v):
+        visited[v] = True
+        
+        for i in adj[v]:
+            if not visited[i]:
+                topologicalSortUtil(i)
+                
+        stack.append(v)
+        
+    for i in range(V):
+        if not visited[i]:
+            topologicalSortUtil(i)
+            
+    # Return reversed stack
+    return stack[::-1]''',
+            "code_result": "List of nodes in topological order"
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_graph_topo,
+        name="Kahn's Algorithm (BFS based)",
+        defaults={
+            "description": "Calculate in-degrees of all vertices. Enqueue vertices with in-degree 0. While queue has elements, dequeue, append to result, and decrement in-degrees of neighbors. If neighbor's in-degree becomes 0, enqueue it.",
+            "time_complexity": "O(V + E)",
+            "space_complexity": "O(V)",
+            "code_example": '''def topologicalSortKahn(V, adj):
+    in_degree = [0] * V
+    
+    for i in range(V):
+        for j in adj[i]:
+            in_degree[j] += 1
+            
+    queue = []
+    for i in range(V):
+        if in_degree[i] == 0:
+            queue.append(i)
+            
+    result = []
+    
+    while queue:
+        u = queue.pop(0)
+        result.append(u)
+        
+        for i in adj[u]:
+            in_degree[i] -= 1
+            if in_degree[i] == 0:
+                queue.append(i)
+                
+    return result''',
+            "code_result": "List of nodes in topological order"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 3: Shortest Path
+    # =========================================================================
+    pat_graph_path, _ = Pattern.objects.get_or_create(
+        category=cat_graph,
+        name="Shortest Path Algorithms",
+        defaults={
+            "description": "Finding minimum weight paths between vertices in a weighted graph using algorithms like Dijkstra's or Bellman-Ford.",
+            "use_cases": "Network routing, Maps, Minimum cost to reach destination"
+        }
+    )
+
+    prob_dijkstra, _ = Problem.objects.get_or_create(
+        pattern=pat_graph_path,
+        phrase="Dijkstra's Algorithm",
+        defaults={
+            "statement": "Given a graph and a source vertex, find the shortest paths from the source to all vertices in the given graph."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_graph_path,
+        name="Priority Queue (Min-Heap)",
+        defaults={
+            "description": "Maintain a distance array initialized to infinity. Use a min-heap to pick the unvisited vertex with the smallest distance. Relax its neighbors' distances and push updated pairs to the heap.",
+            "time_complexity": "O((V + E) log V)",
+            "space_complexity": "O(V)",
+            "code_example": '''import heapq
+
+def dijkstra(V, adj, S):
+    # adj is list of lists of pairs: (neighbor, weight)
+    pq = []
+    dist = [float('inf')] * V
+    
+    heapq.heappush(pq, (0, S))
+    dist[S] = 0
+    
+    while pq:
+        d, u = heapq.heappop(pq)
+        
+        # Optimization: skip if we found a shorter path already
+        if d > dist[u]:
+            continue
+            
+        for v, weight in adj[u]:
+            if dist[u] + weight < dist[v]:
+                dist[v] = dist[u] + weight
+                heapq.heappush(pq, (dist[v], v))
+                
+    return dist''',
+            "code_result": "Array of shortest distances from source"
+        }
+    )
+
+    prob_bellman, _ = Problem.objects.get_or_create(
+        pattern=pat_graph_path,
+        phrase="Bellman-Ford Algorithm",
+        defaults={
+            "statement": "Find shortest paths from the source to all vertices handling negative weight edges, and detect negative weight cycles."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_graph_path,
+        name="Edge Relaxation",
+        defaults={
+            "description": "Relax all edges V-1 times. A single relaxation updates distance to an edge's destination if the source's distance + edge weight is smaller. A Vth relaxation detecting a change implies a negative cycle.",
+            "time_complexity": "O(V * E)",
+            "space_complexity": "O(V)",
+            "code_example": '''def bellmanFord(V, edges, S):
+    # edges list contains (u, v, weight)
+    dist = [float('inf')] * V
+    dist[S] = 0
+    
+    # Relax edges V-1 times
+    for _ in range(V - 1):
+        for u, v, w in edges:
+            if dist[u] != float('inf') and dist[u] + w < dist[v]:
+                dist[v] = dist[u] + w
+                
+    # Detect negative cycle
+    for u, v, w in edges:
+        if dist[u] != float('inf') and dist[u] + w < dist[v]:
+            return [-1] # Indicates negative cycle
+            
+    return dist''',
+            "code_result": "Array of shortest distances or [-1]"
+        }
+    )
+
+
+def populate_dp():
+    print("Populating Category: Dynamic Programming...")
+    cat_dp, _ = Category.objects.get_or_create(name="Dynamic Programming")
+
+    # =========================================================================
+    # Define All DP Patterns
+    # =========================================================================
+    pat_dp_1d, _ = Pattern.objects.get_or_create(
+        category=cat_dp,
+        name="1D DP (Linear & State Machine)",
+        defaults={
+            "description": "State depends only on previous consecutive states or a small finite number of states.",
+            "use_cases": "Climbing stairs, House Robber, Jump Game"
+        }
+    )
+
+    pat_dp_string, _ = Pattern.objects.get_or_create(
+        category=cat_dp,
+        name="String DP",
+        defaults={
+            "description": "Problems involving strings, substrings, subsequences, or edit operations.",
+            "use_cases": "Longest Common Subsequence, Edit Distance"
+        }
+    )
+
+    pat_dp_01_knapsack, _ = Pattern.objects.get_or_create(
+        category=cat_dp,
+        name="0/1 Knapsack",
+        defaults={
+            "description": "Choosing items within a constraint where each item is chosen at most once.",
+            "use_cases": "0/1 Knapsack, Subset Sum"
+        }
+    )
+
+    pat_dp_unbounded, _ = Pattern.objects.get_or_create(
+        category=cat_dp,
+        name="Unbounded Knapsack",
+        defaults={
+            "description": "Similar to 0/1 Knapsack, but each item can be chosen unlimited times.",
+            "use_cases": "Coin Change, Rod Cutting"
+        }
+    )
+
+    pat_dp_grid, _ = Pattern.objects.get_or_create(
+        category=cat_dp,
+        name="Grid DP / Paths",
+        defaults={
+            "description": "Finding paths or optimizing values on a 2D grid.",
+            "use_cases": "Unique Paths"
+        }
+    )
+
+    pat_dp_interval, _ = Pattern.objects.get_or_create(
+        category=cat_dp,
+        name="2D DP (Interval & Min-Max)",
+        defaults={
+            "description": "Advanced 2D DP for interval optimization or min-max scenarios.",
+            "use_cases": "Matrix Chain Multiplication, Egg Dropping"
+        }
+    )
+
+    pat_dp_lis, _ = Pattern.objects.get_or_create(
+        category=cat_dp,
+        name="Subsequence DP (LIS)",
+        defaults={
+            "description": "Finding subsequences based on comparisons, like the longest increasing subsequence.",
+            "use_cases": "Longest Increasing Subsequence"
+        }
+    )
+
+    prob_stairs, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_1d,
+        phrase="Climbing Stairs",
+        defaults={
+            "statement": "You are climbing a staircase. It takes n steps to reach the top. Each time you can either climb 1 or 2 steps. In how many distinct ways can you climb to the top?"
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_1d,
+        name="Space Optimization",
+        defaults={
+            "description": "Instead of an O(N) array, just keep track of the previous two computed states directly.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def climbStairs(n):
+    if n <= 2:
+        return n
+        
+    prev1 = 1
+    prev2 = 2
+    
+    for i in range(3, n + 1):
+        curr = prev1 + prev2
+        prev1 = prev2
+        prev2 = curr
+        
+    return prev2
+
+print(climbStairs(5))''',
+            "code_result": "8"
+        }
+    )
+
+    prob_coin_change, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_unbounded,
+        phrase="Coin Change",
+        defaults={
+            "statement": "Given an integer array coins representing coins of different denominations and an integer amount, return the fewest number of coins that you need to make up that amount."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_unbounded,
+        name="Bottom-Up DP",
+        defaults={
+            "description": "Create an array dp of size amount+1, initialized to infinity. dp[0] = 0. For each amount, iterate through all coins and update dp[i] = min(dp[i], dp[i - coin] + 1).",
+            "time_complexity": "O(amount * len(coins))",
+            "space_complexity": "O(amount)",
+            "code_example": '''def coinChange(coins, amount):
+    dp = [float('inf')] * (amount + 1)
+    dp[0] = 0
+    
+    for i in range(1, amount + 1):
+        for coin in coins:
+            if i - coin >= 0:
+                dp[i] = min(dp[i], dp[i - coin] + 1)
+                
+    return dp[amount] if dp[amount] != float('inf') else -1
+
+coins = [1, 2, 5]
+amount = 11
+print(coinChange(coins, amount))''',
+            "code_result": "3"
+        }
+    )
+
+    prob_lcs, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_string,
+        phrase="Longest Common Subsequence",
+        defaults={
+            "statement": "Find the length of the longest common subsequence mapped between two strings."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_string,
+        name="2D Matrix Tabulation",
+        defaults={
+            "description": "Create a 2D array of (len1+1) x (len2+1) initialized to 0. If chars match, dp[i][j] = 1 + dp[i-1][j-1]. Else, dp[i][j] = max(dp[i-1][j], dp[i][j-1]).",
+            "time_complexity": "O(M * N)",
+            "space_complexity": "O(M * N)",
+            "code_example": '''def lcs(text1, text2):
+    m, n = len(text1), len(text2)
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+    
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if text1[i-1] == text2[j-1]:
+                dp[i][j] = 1 + dp[i-1][j-1]
+            else:
+                dp[i][j] = max(dp[i-1][j], dp[i][j-1])
+                
+    return dp[m][n]
+
+t1 = "abcde"
+t2 = "ace"
+print(lcs(t1, t2))''',
+            "code_result": "3"
+        }
+    )
+
+    prob_edit, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_string,
+        phrase="Edit Distance",
+        defaults={
+            "statement": "Given two strings word1 and word2, return the minimum number of operations required to convert word1 to word2."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_string,
+        name="2D Grid DP",
+        defaults={
+            "description": "Initialize a 2D array representing distances between prefixes. If characters don't match, take 1 + min(insert, delete, replace).",
+            "time_complexity": "O(M * N)",
+            "space_complexity": "O(M * N)",
+            "code_example": '''def minDistance(word1, word2):
+    m, n = len(word1), len(word2)
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+    
+    for i in range(m + 1):
+        dp[i][0] = i
+    for j in range(n + 1):
+        dp[0][j] = j
+        
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if word1[i-1] == word2[j-1]:
+                dp[i][j] = dp[i-1][j-1]
+            else:
+                dp[i][j] = 1 + min(dp[i-1][j],      # Delete
+                                   dp[i][j-1],      # Insert
+                                   dp[i-1][j-1])    # Replace
+                                   
+    return dp[m][n]
+
+w1 = "horse"
+w2 = "ros"
+print(minDistance(w1, w2))''',
+            "code_result": "3"
+        }
+    )
+
+    prob_knapsack, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_01_knapsack,
+        phrase="0/1 Knapsack Problem",
+        defaults={
+            "statement": "Given weights and values of N items, put these items in a knapsack of capacity W to get the maximum total value in the knapsack."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_01_knapsack,
+        name="2D DP Table",
+        defaults={
+            "description": "Build a table K[i][w] representing max value using first i items and capacity w. If wt[i-1] <= w, K[i][w] = max(val[i-1] + K[i-1][w-wt[i-1]], K[i-1][w]).",
+            "time_complexity": "O(N * W)",
+            "space_complexity": "O(N * W)",
+            "code_example": '''def knapSack(W, wt, val, n):
+    K = [[0 for x in range(W + 1)] for x in range(n + 1)]
+    
+    for i in range(n + 1):
+        for w in range(W + 1):
+            if i == 0 or w == 0:
+                K[i][w] = 0
+            elif wt[i-1] <= w:
+                K[i][w] = max(val[i-1] + K[i-1][w-wt[i-1]],  K[i-1][w])
+            else:
+                K[i][w] = K[i-1][w]
+                
+    return K[n][W]
+
+val = [60, 100, 120]
+wt = [10, 20, 30]
+W = 50
+n = len(val)
+print(knapSack(W, wt, val, n))''',
+            "code_result": "220"
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_01_knapsack,
+        name="Space Optimized 1D DP",
+        defaults={
+            "description": "Optimize 2D down to 1D by only storing the previous row, and iterating backwards through capacities.",
+            "time_complexity": "O(N * W)",
+            "space_complexity": "O(W)",
+            "code_example": '''def knapSackOptimized(W, wt, val, n):
+    dp = [0 for i in range(W + 1)]
+    
+    for i in range(1, n + 1):
+        for w in range(W, -1, -1):
+            if wt[i-1] <= w:
+                dp[w] = max(dp[w], dp[w - wt[i-1]] + val[i-1])
+                
+    return dp[W]
+
+val = [60, 100, 120]
+wt = [10, 20, 30]
+print(knapSackOptimized(50, wt, val, 3))''',
+            "code_result": "220"
+        }
+    )
+
+    # Adding to Pattern 1: 1D DP (Linear)
+    prob_lis, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_lis,
+        phrase="Longest Increasing Subsequence",
+        defaults={
+            "statement": "Find the length of the longest strictly increasing subsequence in an array."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_lis,
+        name="1D DP Array",
+        defaults={
+            "description": "Create a dp array seeded with 1s. For each element i, check all previous elements j. If arr[i] > arr[j], dp[i] = max(dp[i], dp[j] + 1). Return max(dp).",
+            "time_complexity": "O(N^2)",
+            "space_complexity": "O(N)",
+            "code_example": '''def lengthOfLIS(nums):
+    if not nums: return 0
+    dp = [1] * len(nums)
+    for i in range(1, len(nums)):
+        for j in range(i):
+            if nums[i] > nums[j]:
+                dp[i] = max(dp[i], dp[j] + 1)
+    return max(dp)''',
+            "code_result": "Length of LIS"
+        }
+    )
+
+    prob_word_break, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_string,
+        phrase="Word Break",
+        defaults={
+            "statement": "Given a string and a dictionary of words, determine if the string can be segmented into a space-separated sequence of dictionary words."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_string,
+        name="1D Boolean DP Array",
+        defaults={
+            "description": "dp[i] is True if string up to i can be segmented. Iterate length i from 1 to N, check if any prefix j is True and the substring from j to i is in dictionary.",
+            "time_complexity": "O(N^3) or O(N^2) depending on substring check",
+            "space_complexity": "O(N)",
+            "code_example": '''def wordBreak(s, wordDict):
+    word_set = set(wordDict)
+    dp = [False] * (len(s) + 1)
+    dp[0] = True
+    for i in range(1, len(s) + 1):
+        for j in range(i):
+            if dp[j] and s[j:i] in word_set:
+                dp[i] = True
+                break
+    return dp[len(s)]''',
+            "code_result": "True or False"
+        }
+    )
+
+    prob_combo, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_unbounded,
+        phrase="Combination Sum",
+        defaults={
+            "statement": "Given an array of distinct integers and a target sum, find all unique combinations that add to target."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_unbounded,
+        name="Backtracking / Top-down DP",
+        defaults={
+            "description": "Use recursion with a target value parameter. If target == 0, save combination. Subtract candidates from target and recurse. (Often solved with backtracking instead of strict bottom-up DP to rebuild combinations).",
+            "time_complexity": "O(N^(target/min))",
+            "space_complexity": "O(target/min) recursion depth",
+            "code_example": '''def combinationSum(candidates, target):
+    res = []
+    def dfs(i, cur, total):
+        if total == target:
+            res.append(cur[:])
+            return
+        if i >= len(candidates) or total > target:
+            return
+            
+        cur.append(candidates[i])
+        dfs(i, cur, total + candidates[i])
+        cur.pop()
+        dfs(i + 1, cur, total)
+        
+    dfs(0, [], 0)
+    return res''',
+            "code_result": "List of lists forming valid combinations"
+        }
+    )
+
+    prob_dice, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_interval,
+        phrase="Dice Throw",
+        defaults={
+            "statement": "Given n dice each with m faces. Find number of ways to get sum x."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_interval,
+        name="Top-down Memoization",
+        defaults={
+            "description": "Recursive relation where ways(n, sum) = sum(ways(n-1, sum-i)) for i from 1 to m. Use a memo dictionary to cache.",
+            "time_complexity": "O(N * X * M)",
+            "space_complexity": "O(N * X)",
+            "code_example": '''def dice_throw(n, f, s, memo=None):
+    if memo is None: memo = {}
+    if (n, s) in memo: return memo[(n, s)]
+    if n == 0: return 1 if s == 0 else 0
+    if s <= 0: return 0
+    
+    ways = 0
+    for i in range(1, f + 1):
+        ways += dice_throw(n - 1, f, s - i, memo)
+    memo[(n, s)] = ways
+    return ways''',
+            "code_result": "Total number of ways"
+        }
+    )
+
+    prob_robber, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_interval,
+        phrase="House Robber",
+        defaults={
+            "statement": "Find maximum amount of money which can be stolen without robbing adjacent houses."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_1d,
+        name="Two-variable tracking",
+        defaults={
+            "description": "Max value at i is max(rob i + max at i-2, max at i-1). Keep track of just two previous max values to optimize space.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def rob(nums):
+    rob1, rob2 = 0, 0
+    for n in nums:
+        temp = max(n + rob1, rob2)
+        rob1 = rob2
+        rob2 = temp
+    return rob2''',
+            "code_result": "Max stolen value"
+        }
+    )
+
+    # Adding to Pattern 2: 2D DP
+    prob_mcm, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_interval,
+        phrase="Matrix Chain Multiplication",
+        defaults={
+            "statement": "Find the most efficient way to multiply a sequence of matrices to minimize scalar multiplications."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_interval,
+        name="Interval DP",
+        defaults={
+            "description": "Use DP to solve smaller intervals (chains). dp[i][j] is min cost to multiply matrices from i to j.",
+            "time_complexity": "O(N^3)",
+            "space_complexity": "O(N^2)",
+            "code_example": '''def matrixChainOrder(p):
+    n = len(p)
+    m = [[0 for x in range(n)] for x in range(n)]
+    
+    for L in range(2, n):
+        for i in range(1, n - L + 1):
+            j = i + L - 1
+            m[i][j] = float('inf')
+            for k in range(i, j):
+                q = m[i][k] + m[k + 1][j] + p[i - 1] * p[k] * p[j]
+                if q < m[i][j]:
+                    m[i][j] = q
+    return m[1][n - 1]''',
+            "code_result": "Minimum scalar multiplications"
+        }
+    )
+
+    prob_egg, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_interval,
+        phrase="Egg Dropping Puzzle",
+        defaults={
+            "statement": "Find minimum number of egg drops (worst case) to identify the highest floor from which an egg can be dropped without breaking."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_interval,
+        name="Min-Max 2D DP",
+        defaults={
+            "description": "If we drop at floor X, worst case is max(egg breaks (e-1, X-1), egg survives (e, F-X)). Iterate X to minimize this worst case.",
+            "time_complexity": "O(E * F^2)",
+            "space_complexity": "O(E * F)",
+            "code_example": '''def eggDrop(e, f):
+    dp = [[0] * (f + 1) for _ in range(e + 1)]
+    for i in range(1, e + 1):
+        dp[i][1] = 1
+        dp[i][0] = 0
+    for j in range(1, f + 1):
+        dp[1][j] = j
+        
+    for i in range(2, e + 1):
+        for j in range(2, f + 1):
+            dp[i][j] = float('inf')
+            for x in range(1, j + 1):
+                res = 1 + max(dp[i - 1][x - 1], dp[i][j - x])
+                if res < dp[i][j]:
+                    dp[i][j] = res
+    return dp[e][f]''',
+            "code_result": "Minimum drops in worst case"
+        }
+    )
+
+    # Adding to Pattern 3: Knapsack Patterns
+    prob_subset_sum, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_01_knapsack,
+        phrase="Subset Sum Problem",
+        defaults={
+            "statement": "Check if there is a subset of the array whose sum is equal to the given sum."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_01_knapsack,
+        name="Tabulation DP",
+        defaults={
+            "description": "Create a boolean DP table where dp[i][j] means a subset of first i elements can sum to j. dp[i][j] = dp[i-1][j] or dp[i-1][j-arr[i-1]].",
+            "time_complexity": "O(N * target)",
+            "space_complexity": "O(target) optimized 1D",
+            "code_example": '''def isSubsetSum(arr, target):
+    dp = [False] * (target + 1)
+    dp[0] = True
+    
+    for num in arr:
+        for j in range(target, num - 1, -1):
+            dp[j] = dp[j] | dp[j - num]
+            
+    return dp[target]''',
+            "code_result": "True or False"
+        }
+    )
+
+    # Adding Remaining DP Problems (13 to 18)
+    # Adding to Pattern 1: 1D DP
+    prob_decodings, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_string,
+        phrase="Count Possible Decodings of a given Digit Sequence",
+        defaults={
+            "statement": "Let 1 represent 'A', 2 represent 'B', etc. Given a digit sequence, count the number of possible decodings of the given digit sequence."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_string,
+        name="Top-down DP / Memoization",
+        defaults={
+            "description": "If digits are valid, recursive call for 1 digit (if != '0') and 2 digits (if string[i:i+2] between 10 and 26). Cache results.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(N)",
+            "code_example": '''def decode_digits(string, n, memo=None):
+    if memo is None: memo = {}
+    if n in memo: return memo[n]
+    if n == 0: return 1
+    
+    ways = 0
+    if n >= 2 and 10 <= int(string[n-2:n]) <= 26:
+        ways += decode_digits(string, n - 2, memo)
+
+    if int(string[n - 1]) != 0:
+        ways += decode_digits(string, n - 1, memo)
+
+    memo[n] = ways
+    return ways''',
+            "code_result": "Total number of decodings"
+        }
+    )
+
+    # Adding to Pattern 2: 2D DP
+    prob_unique_paths, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_grid,
+        phrase="Unique paths in a Grid with Obstacles",
+        defaults={
+            "statement": "Given a grid of size m x n with obstacles (marked as 1), find the number of unique paths from (0, 0) to (m-1, n-1)."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_grid,
+        name="2D DP Top-down Memoization",
+        defaults={
+            "description": "Recursive relation where paths(i,j) = paths(i+1,j) + paths(i,j+1) if cell is not an obstacle. Use memoization to avoid recomputing.",
+            "time_complexity": "O(M * N)",
+            "space_complexity": "O(M * N)",
+            "code_example": '''def count_path(i, j, grid, memo=None):
+    if memo is None: memo = {}
+    if (i, j) in memo: return memo[(i, j)]
+    
+    if i == len(grid) - 1 and j == len(grid[0]) - 1 and grid[i][j] == 0:
+        return 1
+
+    paths = 0
+    if i + 1 < len(grid) and grid[i+1][j] == 0:
+        paths += count_path(i + 1, j, grid, memo)
+    if j + 1 < len(grid[0]) and grid[i][j+1] == 0:
+        paths += count_path(i, j + 1, grid, memo)
+        
+    memo[(i, j)] = paths
+    return paths''',
+            "code_result": "Number of unique paths"
+        }
+    )
+
+    prob_jump, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_grid,
+        phrase="Jump Game",
+        defaults={
+            "statement": "Given an array of positive integers denoting max jump length, find out if you can make it to the last index starting from the first index."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_grid,
+        name="Top-down DP Memoization",
+        defaults={
+            "description": "Check all possible jumps from current index up to arr[i]. If any recursive call reaches end, return True.",
+            "time_complexity": "O(N^2)",
+            "space_complexity": "O(N)",
+            "code_example": '''def jump_game(n, arr, memo=None):
+    if memo is None: memo = {}
+    if n in memo: return memo[n]
+    if n >= len(arr) - 1: return True
+
+    reached = False
+    for i in range(1, arr[n] + 1):
+        if jump_game(n + i, arr, memo):
+            reached = True
+            break
+            
+    memo[n] = reached
+    return reached''',
+            "code_result": "True or False"
+        }
+    )
+
+    prob_rod, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_unbounded,
+        phrase="Rod Cutting",
+        defaults={
+            "statement": "Given a rod of length n inches and an array of prices, determine the maximum value obtainable by cutting up the rod and selling the pieces."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_unbounded,
+        name="Top-down DP Memoization",
+        defaults={
+            "description": "For a rod of length n, try all cuts of length i (from 1 to n) and take max of (price[i-1] + max_price(n-i)).",
+            "time_complexity": "O(N^2)",
+            "space_complexity": "O(N)",
+            "code_example": '''def max_price(n, price, memo=None):
+    if memo is None: memo = {}
+    if n in memo: return memo[n]
+    if n == 0: return 0
+
+    curr_price = 0
+    for i in range(1, n + 1):
+        curr_price = max(curr_price, price[i-1] + max_price(n - i, price, memo))
+        
+    memo[n] = curr_price
+    return curr_price''',
+            "code_result": "Maximum profit"
+        }
+    )
+
+    prob_max_prod_cut, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_unbounded,
+        phrase="Maximum Product Cutting",
+        defaults={
+            "statement": "Given a rope of length n meters, cut the rope in integer lengths to maximize product of lengths. You must make at least one cut."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_unbounded,
+        name="Top-down DP Memoization",
+        defaults={
+            "description": "For rod of length n, for each cut of length i, max product is max(i * (n-i), i * max_product(n-i)). Record max over all i.",
+            "time_complexity": "O(N^2)",
+            "space_complexity": "O(N)",
+            "code_example": '''def max_product(n, memo=None):
+    if memo is None: memo = {}
+    if n in memo: return memo[n]
+    if n == 1: return 1
+
+    product = 0
+    for i in range(1, n):
+        current_product = i * (n - i)
+        product = max(product, current_product, i * max_product(n - i, memo))
+        
+    memo[n] = product
+    return product''',
+            "code_result": "Maximum product"
+        }
+    )
+
+    prob_ways_dist, _ = Problem.objects.get_or_create(
+        pattern=pat_dp_unbounded,
+        phrase="Count number of ways to cover a distance",
+        defaults={
+            "statement": "Given a distance 'dist', count total number of ways to cover the distance with 1, 2 and 3 steps."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_dp_unbounded,
+        name="Top-down DP Memoization",
+        defaults={
+            "description": "Recurrence: ways(n) = ways(n-1) + ways(n-2) + ways(n-3). Base cases: ways(0)=1, ways(1)=1.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(N)",
+            "code_example": '''def countways(n, memo=None):
+    if memo is None: memo = {}
+    if n in memo: return memo[n]
+    if n == 0 or n == 1: return 1
+    if n < 0: return 0
+    
+    ways = countways(n-1, memo) + countways(n-2, memo) + countways(n-3, memo)
+    memo[n] = ways
+    return ways''',
+            "code_result": "Total ways"
+        }
+    )
+
+
+def populate_bit():
+    print("Populating Category: Bit Manipulations...")
+    cat_bit, _ = Category.objects.get_or_create(name="Bit Manipulations")
+
+    # =========================================================================
+    # Pattern 1: Basic Operations & XOR
+    # =========================================================================
+    pat_bit_xor, _ = Pattern.objects.get_or_create(
+        category=cat_bit,
+        name="Basic Operations & XOR properties",
+        defaults={
+            "description": "Using bitwise XOR to cancel out matching pairs or manipulate specific bits without arithmetic operators.",
+            "use_cases": "Finding single numbers, swapping variables, parity checks"
+        }
+    )
+
+    prob_single_num, _ = Problem.objects.get_or_create(
+        pattern=pat_bit_xor,
+        phrase="Single Number",
+        defaults={
+            "statement": "Given a non-empty array of integers nums, every element appears twice except for one. Find that single one."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_bit_xor,
+        name="XOR Accumulation",
+        defaults={
+            "description": "XOR all elements in the array. Since a^a = 0 and b^0 = b, the pairs cancel each other out, leaving only the single number.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def singleNumber(nums):
+    result = 0
+    for num in nums:
+        result ^= num
+    return result
+
+nums = [4, 1, 2, 1, 2]
+print(singleNumber(nums))''',
+            "code_result": "4"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 2: Bit Counting & Parity
+    # =========================================================================
+    pat_bit_count, _ = Pattern.objects.get_or_create(
+        category=cat_bit,
+        name="Bit Counting & Shifting",
+        defaults={
+            "description": "Counting the number of set bits (1s) in a number's binary representation or iterating over bits using shifts.",
+            "use_cases": "Hamming weight, counting bits from 1 to N, power of two checks"
+        }
+    )
+
+    prob_num_1s, _ = Problem.objects.get_or_create(
+        pattern=pat_bit_count,
+        phrase="Number of 1 Bits",
+        defaults={
+            "statement": "Write a function that takes an unsigned integer and returns the number of '1' bits it has (also known as the Hamming weight)."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_bit_count,
+        name="Brian Kernighan's Algorithm",
+        defaults={
+            "description": "Continuously bitwise-AND the number with (number - 1). This drops the lowest set bit in each iteration. Loop until number becomes 0.",
+            "time_complexity": "O(1) (or O(k) where k is number of set bits)",
+            "space_complexity": "O(1)",
+            "code_example": '''def hammingWeight(n):
+    count = 0
+    while n:
+        n &= (n - 1)
+        count += 1
+    return count
+
+n = 11  # Binary 1011
+print(hammingWeight(n))''',
+            "code_result": "3"
+        }
+    )
+
+    # Adding to Pattern 1: Basic Operations & XOR properties
+    prob_missing_num, _ = Problem.objects.get_or_create(
+        pattern=pat_bit_xor,
+        phrase="Find the Missing Number",
+        defaults={
+            "statement": "Given an array of size n-1 with integers in range [1, n]. Find the missing element."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_bit_xor,
+        name="XOR Method",
+        defaults={
+            "description": "XOR all elements in the array. XOR all numbers from 1 to n. The XOR of these two results will give the missing number since all other numbers will cancel out.",
+            "time_complexity": "O(N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def missingNumber(arr, n):
+    xor1 = 0
+    xor2 = 0
+    for num in arr: xor2 ^= num
+    for i in range(1, n + 1): xor1 ^= i
+    return xor1 ^ xor2''',
+            "code_result": "Missing integer"
+        }
+    )
+
+    # Adding to Pattern 2: Bit Counting & Shifting
+    prob_rev_bits, _ = Problem.objects.get_or_create(
+        pattern=pat_bit_count,
+        phrase="Reverse actual bits of given number",
+        defaults={
+            "statement": "Reverse the actual bits of n (excluding leading 0s) and return the resulting number."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_bit_count,
+        name="Bit-by-Bit Shift and OR",
+        defaults={
+            "description": "Initialize rev=0. Loop while n>0: shift rev left, append the last bit of n (n & 1) to rev, and shift n right.",
+            "time_complexity": "O(log N) (number of bits)",
+            "space_complexity": "O(1)",
+            "code_example": '''def reverseBits(n):
+    rev = 0
+    while n > 0:
+        rev = rev << 1
+        if (n & 1 == 1):
+            rev = rev ^ 1
+        n = n >> 1
+    return rev''',
+            "code_result": "Integer with reversed bits"
+        }
+    )
+
+    pat_bit_mask, _ = Pattern.objects.get_or_create(
+        category=cat_bit,
+        name="Bit Masking & Flipping",
+        defaults={
+            "description": "Creating and using masks to flip, isolate, or turn off specific groups of bits.",
+            "use_cases": "Flip bits, Check if power of 2, IP addressing"
+        }
+    )
+
+    prob_flip_msb, _ = Problem.objects.get_or_create(
+        pattern=pat_bit_mask,
+        phrase="Flip bits upto most significant 1 bit",
+        defaults={
+            "statement": "Given n, flip all the bits up to the most significant 1 bit and return the new number."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_bit_mask,
+        name="Dynamic Mask Generation",
+        defaults={
+            "description": "Create a mask of all 1s having the same length as n's binary string by shifting and adding 1. Then XOR n with this mask to flip all bits up to the most significant 1.",
+            "time_complexity": "O(log N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def flip_bits(n):
+    mask = 0
+    temp = n
+    while temp:
+        mask <<= 1
+        mask += 1
+        temp >>= 1
+    return n ^ mask''',
+            "code_result": "Integer with flipped bits"
+        }
+    )
+
+
+def populate_matrix():
+    print("Populating Category: Matrix...")
+    cat_matrix, _ = Category.objects.get_or_create(name="Matrix")
+
+    # =========================================================================
+    # Pattern 1: Matrix Traversal Patterns
+    # =========================================================================
+    pat_matrix_trav, _ = Pattern.objects.get_or_create(
+        category=cat_matrix,
+        name="Matrix Traversal Patterns",
+        defaults={
+            "description": "Techniques for navigating 2D arrays in specific sequences such as Spiral, Diagonal, or Zigzag.",
+            "use_cases": "Spiral order printing, Diagonal traversal, Game boards"
+        }
+    )
+
+    prob_spiral, _ = Problem.objects.get_or_create(
+        pattern=pat_matrix_trav,
+        phrase="Spiral Matrix",
+        defaults={
+            "statement": "Given an m x n matrix, print or return all elements of the matrix in spiral order."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_matrix_trav,
+        name="Boundary Tracking (4 Pointers)",
+        defaults={
+            "description": "Use 4 boundaries (top, bottom, left, right). Traverse the perimeter, then shrink the boundaries inward after each directional sweep is completed.",
+            "time_complexity": "O(M * N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def spiralPrint(matrix):
+    if not matrix: return []
+    res = []
+    top, bottom = 0, len(matrix) - 1
+    left, right = 0, len(matrix[0]) - 1
+
+    while top <= bottom and left <= right:
+        for i in range(left, right + 1):
+            res.append(matrix[top][i])
+        top += 1
+
+        for i in range(top, bottom + 1):
+            res.append(matrix[i][right])
+        right -= 1
+
+        if top <= bottom:
+            for i in range(right, left - 1, -1):
+                res.append(matrix[bottom][i])
+            bottom -= 1
+
+        if left <= right:
+            for i in range(bottom, top - 1, -1):
+                res.append(matrix[i][left])
+            left += 1
+            
+    return res
+
+matrix = [
+    [1, 2, 3, 4],
+    [5, 6, 7, 8],
+    [9, 10, 11, 12],
+    [13, 14, 15, 16]
+]
+print(spiralPrint(matrix))''',
+            "code_result": "[1, 2, 3, 4, 8, 12, 16, 15, 14, 13, 9, 5, 6, 7, 11, 10]"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 2: Matrix Modification
+    # =========================================================================
+    pat_matrix_mod, _ = Pattern.objects.get_or_create(
+        category=cat_matrix,
+        name="Matrix Modification",
+        defaults={
+            "description": "Setting rows/columns or rotating the matrix based on specific conditions, often requiring in-place operations.",
+            "use_cases": "Set matrix zeros, rotate image"
+        }
+    )
+
+    prob_set_zeroes, _ = Problem.objects.get_or_create(
+        pattern=pat_matrix_mod,
+        phrase="Set Matrix Zeroes",
+        defaults={
+            "statement": "Given an m x n boolean matrix, if an element is 1 (or 0 depending on the phrasing), set its entire row and column to that value."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_matrix_mod,
+        name="Auxiliary Sets Tracker",
+        defaults={
+            "description": "Iterate through the matrix and record the coordinates (row index and col index) of all target values using two Sets. Then iterate a second time and clear the row/col if it exists in the sets.",
+            "time_complexity": "O(M * N)",
+            "space_complexity": "O(M + N)",
+            "code_example": '''def setZeroes(matrix):
+    rows = set()
+    cols = set()
+    
+    # Pass 1: find zeros
+    for i in range(len(matrix)):
+        for j in range(len(matrix[0])):
+            if matrix[i][j] == 0:
+                rows.add(i)
+                cols.add(j)
+                
+    # Pass 2: set zeros
+    for i in range(len(matrix)):
+        for j in range(len(matrix[0])):
+            if i in rows or j in cols:
+                matrix[i][j] = 0
+                
+    return matrix
+
+mat = [[1,1,1], [1,0,1], [1,1,1]]
+print(setZeroes(mat))''',
+            "code_result": "[[1, 0, 1], [0, 0, 0], [1, 0, 1]]"
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_matrix_mod,
+        name="In-Place Markers (O(1) Space)",
+        defaults={
+            "description": "Use the first row and first column of the matrix itself to store the boolean flags for rows/cols that need to be zeroed out. Handle the very first element (0,0) with a separate boolean track.",
+            "time_complexity": "O(M * N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def setZeroesInPlace(matrix):
+    m, n = len(matrix), len(matrix[0])
+    first_col_zero = False
+    
+    for i in range(m):
+        if matrix[i][0] == 0:
+            first_col_zero = True
+        for j in range(1, n):
+            if matrix[i][j] == 0:
+                matrix[i][0] = 0
+                matrix[0][j] = 0
+                
+    for i in range(1, m):
+        for j in range(1, n):
+            if matrix[i][0] == 0 or matrix[0][j] == 0:
+                matrix[i][j] = 0
+                
+    if matrix[0][0] == 0:
+        for j in range(n):
+            matrix[0][j] = 0
+            
+    if first_col_zero:
+        for i in range(m):
+            matrix[i][0] = 0
+            
+    return matrix
+
+mat = [[1,1,1], [1,0,1], [1,1,1]]
+print(setZeroesInPlace(mat))''',
+            "code_result": "[[1, 0, 1], [0, 0, 0], [1, 0, 1]]"
+        }
+    )
+    # =========================================================================
+    # Adding Transpose problem to Matrix Modification
+    # =========================================================================
+    prob_transpose, _ = Problem.objects.get_or_create(
+        pattern=pat_matrix_mod,
+        phrase="Transpose of a Matrix",
+        defaults={
+            "statement": "Given a matrix of size N x M, find the transpose of the matrix by changing rows to columns and columns to rows."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_matrix_mod,
+        name="In-place Swapping",
+        defaults={
+            "description": "Iterate through the upper triangle of the matrix (where j > i) and swap matrix[i][j] with matrix[j][i].",
+            "time_complexity": "O(N * M)",
+            "space_complexity": "O(1)",
+            "code_example": '''def transpose(A):
+    N = len(A)
+    for i in range(N):
+        for j in range(i + 1, N):
+            A[i][j], A[j][i] = A[j][i], A[i][j]
+
+A = [[1, 1, 1, 1],
+     [2, 2, 2, 2],
+     [3, 3, 3, 3],
+     [4, 4, 4, 4]]
+transpose(A)
+print(A)''',
+            "code_result": "[[1, 2, 3, 4], [1, 2, 3, 4], ...]"
+        }
+    )
+
+    # =========================================================================
+    # =========================================================================
+    pat_matrix_search, _ = Pattern.objects.get_or_create(
+        category=cat_matrix,
+        name="Matrix Search",
+        defaults={
+            "description": "Searching for a target element in a 2D grid efficiently when the grid exhibits some sorted properties (e.g., each row/col is sorted).",
+            "use_cases": "Search a 2D matrix"
+        }
+    )
+
+    prob_search_mat, _ = Problem.objects.get_or_create(
+        pattern=pat_matrix_search,
+        phrase="Search in a Sorted Matrix",
+        defaults={
+            "statement": "Given an n x n matrix where every row and column is sorted in increasing order, search for a target value."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_matrix_search,
+        name="Staircase Search",
+        defaults={
+            "description": "Start from the top-right corner. If the target is smaller, it can't be in the current column (move left). If the target is larger, it can't be in the current row (move down).",
+            "time_complexity": "O(M + N)",
+            "space_complexity": "O(1)",
+            "code_example": '''def searchMatrix(mat, target):
+    if not mat: return False
+    n = len(mat)
+    i, j = 0, n - 1
+    
+    while i < n and j >= 0:
+        if mat[i][j] == target:
+            return True, (i, j)
+        elif mat[i][j] > target:
+            j -= 1
+        else:
+            i += 1
+            
+    return False
+
+mat = [
+    [10, 20, 30, 40],
+    [15, 25, 35, 45],
+    [27, 29, 37, 48],
+    [32, 33, 39, 50]
+]
+print(searchMatrix(mat, 29))''',
+            "code_result": "(True, (2, 1))"
+        }
+    )
+
+    # =========================================================================
+    # Pattern 4: Grid / Board Search
+    # =========================================================================
+    pat_grid_search, _ = Pattern.objects.get_or_create(
+        category=cat_matrix,
+        name="Grid / Board Search",
+        defaults={
+            "description": "Searching through a grid of characters in multiple directions (DFS/BFS) to match strings or paths.",
+            "use_cases": "Word search, Boggle, Path finding in maze"
+        }
+    )
+
+    prob_word_search, _ = Problem.objects.get_or_create(
+        pattern=pat_grid_search,
+        phrase="Word Search in Grid",
+        defaults={
+            "statement": "Given a 2D grid of characters and a list of words, find all occurrences of the given words in the grid. Words can be matched in all 8 directions."
+        }
+    )
+
+    Approach.objects.get_or_create(
+        pattern=pat_grid_search,
+        name="DFS with Backtracking",
+        defaults={
+            "description": "For every cell matching the first character of a word, start a DFS search exploring all 8 directional neighbors, marking cells as visited to prevent reuse.",
+            "time_complexity": "O(W * R * C * 8^L) (W=words, L=word length)",
+            "space_complexity": "O(R * C) for visited array",
+            "code_example": '''def dfs(x, y, s, board, vis, mover):
+    if not s: return True
+    vis[x][y] = True
+    sol = False
+    for move in mover:
+        currX, currY = move[0] + x, move[1] + y
+        if 0 <= currX < len(board) and 0 <= currY < len(board[0]):
+            if board[currX][currY] == s[0] and not vis[currX][currY]:
+                if dfs(currX, currY, s[1:], board, vis, mover):
+                    sol = True
+    return sol''',
+            "code_result": "List of words found with locations"
+        }
+    )
+
+def populate():
+    clear_existing()
+    populate_arrays()
+    populate_string()
+    populate_linked_list()
+    populate_stacks_queues()
+    populate_trees()
+    populate_heaps()
+    populate_graphs()
+    populate_dp()
+    populate_bit()
+    populate_matrix()
+    print("All tasks completed.")
+
+if __name__ == "__main__":
+    populate()
