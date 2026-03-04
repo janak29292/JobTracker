@@ -1,4 +1,6 @@
 import json
+import os
+import re
 import traceback
 from urllib.parse import parse_qs, urlparse
 
@@ -27,114 +29,177 @@ def initialize_parser(login_url, username, password):
 
 
 @shared_task
-def save_linkedin_recommended_job_urls():
-    cookies = Session.objects.get(
-        platform='LI'
-    ).data
+def save_job_urls(source=None, scan_type=None):
     parser = Parser()
-    job_id_list = parser.scan_urls(cookies)
+    job_id_list = parser.scan_urls(source=source, scan_type=scan_type)
     parser.playwright.stop()
 
-    JobUrl.objects.bulk_create(
-        [JobUrl(url=f"https://www.linkedin.com/jobs/collections/recommended/?currentJobId={i}") for i in job_id_list]
-    )
-
-
-@shared_task
-def save_linkedin_filtered_job_urls():
-    cookies = Session.objects.get(
-        platform='LI'
-    ).data
-    parser = Parser()
-    job_id_list = parser.scan_urls(cookies, filtered=True)
-    parser.playwright.stop()
-
-    JobUrl.objects.bulk_create(
-        [JobUrl(url=f"https://www.linkedin.com/jobs/search/?currentJobId={i}") for i in job_id_list]
-    )
+    if source == 'linkedin':
+        if scan_type == 'filtered':
+            JobUrl.objects.bulk_create(
+                [JobUrl(url=f"https://www.linkedin.com/jobs/search/?currentJobId={i}") for i in job_id_list]
+            )
+        if scan_type == 'recommended':
+            JobUrl.objects.bulk_create(
+                [JobUrl(url=f"https://www.linkedin.com/jobs/collections/recommended/?currentJobId={i}") for i in
+                 job_id_list]
+            )
+    if source == 'naukri':
+        JobUrl.objects.bulk_create(
+            [JobUrl(url=url) for url in job_id_list]
+        )
 
 
 @shared_task
 def add_jobs():
-    cookies = Session.objects.get(
-        platform='LI'
-    ).data
-    raw_data_list = []
+    buffer_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scrape_buffer.jsonl')
+
+    # Recovery: if buffer file exists from a previous interrupted run, save it first
+    if os.path.exists(buffer_path):
+        print(f"Found previous scrape buffer, saving first...")
+        _save_raw_data_from_file(buffer_path)
+
     job_urls = list(JobUrl.objects.filter(scanned=False))
+    if len(job_urls) > 0:
+        last = job_urls[-1].id
+    else:
+        print("No jobs to scrape")
+        return
+
     parser = Parser()
     for job_url in job_urls:
         url = job_url.url
         job_url_id = job_url.id
         try:
-            print(f"Scraping: {job_url_id}: {url}")
-            description, company, job_title, job_info = parser.read_job(url, cookies)
+            print(f"Scraping: {job_url_id} of {last}: {url}")
+            result = parser.read_job(url)
+            if result is None:
+                print(f"Expired: {job_url_id}: {url}")
+                with open(buffer_path, 'a') as f:
+                    f.write(json.dumps({"job_url_id": job_url_id}) + '\n')
+                continue
+
+            platform, description, company, job_title, job_info = result
             page_url = parser.page.url
-            # parser.playwright.stop()
-            raw_data_list.append(
-                {
-                    "description": description,
-                    "company": company,
-                    "job_title": job_title,
-                    "job_info": job_info,
-                    "job_id": parse_qs(urlparse(page_url).query)['currentJobId'][0],
-                    "job_url": page_url,
-                    "job_url_id": job_url_id
-                }
-            )
+            parsed = urlparse(page_url)
+
+            # Extract job_id based on source
+            if 'naukri.com' in parsed.netloc:
+                # Naukri: job ID is the last numeric segment in the path
+                job_id = re.search(r'-(\d{10,})/?$', parsed.path).group(1)
+            else:
+                # LinkedIn: job ID is in the currentJobId query param
+                job_id = parse_qs(parsed.query)['currentJobId'][0]
+
+            raw_data = {
+                "platform": platform,
+                "description": description,
+                "company": company,
+                "job_title": job_title,
+                "job_info": job_info,
+                "job_id": job_id,
+                "job_url": page_url,
+                "job_url_id": job_url_id
+            }
+
+            # Append as a single JSON line
+            with open(buffer_path, 'a') as f:
+                f.write(json.dumps(raw_data) + '\n')
+
         except Exception as e:
             print(e)
-            print('-------------------')
-            print(traceback.format_exc())
+            # print('-------------------')
+            # print(traceback.format_exc())
             parser.playwright.stop()
             parser = Parser()
-            # raise e
     parser.playwright.stop()
-    for raw_data in raw_data_list:
-        job_url = JobUrl.objects.get(id=raw_data["job_url_id"])
-        url = job_url.url
-        job_url_id = job_url.id
+
+    _save_raw_data_from_file(buffer_path)
+
+
+def _save_raw_data_from_file(buffer_path):
+    with open(buffer_path, 'r') as f:
+        lines = f.readlines()
+
+    print(f"Saving {len(lines)} scraped jobs from buffer...")
+    index = 0
+    while True:
         try:
-            print(f"Saving: {job_url_id}: {url}")
-            JobRaw.objects.create(
-                description=raw_data["description"],
-                company=raw_data["company"],
-                job_title=raw_data["job_title"],
-                job_info=raw_data["job_info"],
-                job_id=raw_data["job_id"],
-                job_url=raw_data["job_url"],
-            )
-        except IntegrityError:
-            print(
-                f"Job: {parse_qs(urlparse(raw_data['job_url']).query)['currentJobId'][0]}: "
-                f"{raw_data['company']}: {raw_data['job_title']} already Exists"
-            )
-        job_url.scanned = True
-        job_url.save()
-    print(f"Job Urls left: {JobUrl.objects.filter(scanned=False).count()}")
+            raw_data = json.loads(lines[index])
+            job_url = JobUrl.objects.get(id=raw_data["job_url_id"])
+            job_url_id = job_url.id
+
+            if "description" not in raw_data:
+                # Expired/skipped job — just mark as scanned
+                print(f"Marking scanned (expired): {job_url_id}")
+                job_url.scanned = True
+                job_url.save()
+                lines.pop(index)
+                continue
+
+            try:
+                print(f"Saving: {job_url_id}: {job_url.url}")
+                JobRaw.objects.create(
+                    platform=raw_data["platform"],
+                    description=raw_data["description"],
+                    company=raw_data["company"],
+                    job_title=raw_data["job_title"],
+                    job_info=raw_data["job_info"],
+                    job_id=raw_data["job_id"],
+                    job_url=raw_data["job_url"],
+                )
+            except IntegrityError:
+                print(
+                    f"Job: {raw_data['job_id']}: "
+                    f"{raw_data['company']}: {raw_data['job_title']} already Exists"
+                )
+            job_url.scanned = True
+            job_url.save()
+            lines.pop(index)
+
+        except IndexError:
+            break
+        except Exception as e:
+            print(f"Error saving job: {e}")
+            index += 1
+
+    with open(buffer_path, 'w') as f:
+        f.writelines(lines)
 
 
 @shared_task
 def parse_jobs():
-    parser = AdvancedJobParser()
+    desc_parser = AdvancedJobParser()
     for raw_job in JobRaw.objects.filter(parsed=False):
         try:
             print(f"Parsing: {raw_job.company}: {raw_job.job_title}")
             raw_text, last_posted = search_dates(
-                raw_job.job_info,
+                re.sub(r'\bfew\b', '3', raw_job.job_info, flags=re.IGNORECASE),
                 settings={
                     'RELATIVE_BASE': timezone.localtime(raw_job.created_at),
                     'TIMEZONE': 'Asia/Kolkata',
                     'RETURN_AS_TIMEZONE_AWARE': True
                 }
             )[0]
-            job_location = raw_job.job_info.split('·')[0]
-            description_data = parser.parse(raw_job.description)
+            job_location = raw_job.job_info.split('·')[0].strip()
+            description_data = desc_parser.parse(raw_job.description)
+
+            if raw_job.platform == 'NI':
+                parts = raw_job.job_info.split('·')
+                description_data['experience'] = desc_parser.extract_experience(parts[2].strip())
+                description_data['salary'] = parts[3].strip()
+                ratings = parts[4].strip()
+            else:
+                ratings = None
+
             create_job(
                 raw_job=raw_job,
                 last_posted=last_posted,
                 job_location=job_location,
                 description_data=description_data,
-                raw_text=raw_text
+                raw_text=raw_text,
+                platform=raw_job.platform,
+                ratings=ratings,
             )
 
         except Exception as e:
@@ -143,44 +208,3 @@ def parse_jobs():
             # breakpoint()
 
 
-linkedin_recommended_job_pipeline = chain(
-    save_linkedin_recommended_job_urls.si(),
-    add_jobs.si(),
-    parse_jobs.si(),
-)
-
-linkedin_filtered_job_pipeline = chain(
-    save_linkedin_filtered_job_urls.si(),
-    add_jobs.si(),
-    parse_jobs.si(),
-)
-
-@shared_task
-def temp_task():
-    cookies = Session.objects.get(
-        platform='LI'
-    ).data
-    queryset = JobUrl.objects.filter(scanned=True)
-    querylist = [(i.id, i.url) for i in queryset]
-    data_dict = dict()
-    failed_list = []
-    parser = Parser()
-    for i in querylist:
-        try:
-            print(f'Reading: {i[0]}: {i[1]}')
-            description, company, job_title, job_info = parser.read_job(
-                i[1],
-                cookies
-            )
-            data_dict[parser.page.url] = (company, job_title)
-        except Exception as e:
-            print(f'FAILED: {i[0]}: {i[1]}')
-            failed_list.append(i[0])
-            print(traceback.format_exc())
-    parser.playwright.stop()
-    Session.objects.update_or_create(
-        platform='RAW',
-        defaults={
-            'data': json.dumps((data_dict, failed_list), )
-        }
-    )

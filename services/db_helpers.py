@@ -12,6 +12,8 @@ def create_job(*args, **kwargs):
     description_data = kwargs.get('description_data')
     last_posted = kwargs.get('last_posted')
     raw_text = kwargs.get("raw_text")
+    platform = kwargs.get("platform")
+    ratings = kwargs.get("ratings")
 
     experience_min = description_data['experience']['min_years']
     experience_max = description_data['experience']['max_years']
@@ -23,11 +25,13 @@ def create_job(*args, **kwargs):
         TechStack.objects.get_or_create(
             name=tech_stack
         )
-    job, created = Job.objects.get_or_create(
+
+    job, created = Job.objects.update_or_create(
         company=raw_job.company,
         position=raw_job.job_title,
         job_location=job_location,
         defaults={
+            'platform': platform,
             'job_description': raw_job.description,
             'apply_url': raw_job.job_url,
             'experience_min': experience_min,
@@ -35,6 +39,7 @@ def create_job(*args, **kwargs):
             'tech_stack_primary': tech_stack_primary,
             'tech_stack_all': tech_stack_all,
             'salary': salary,
+            'ratings': ratings,
             'last_posted': last_posted,
         }
     )
@@ -57,6 +62,7 @@ def create_job(*args, **kwargs):
         Posting.objects.get_or_create(
             job=job,
             date=last_posted,
+            platform_job_id=raw_job.job_id,
             defaults={
                 "raw_text": raw_text,
             }

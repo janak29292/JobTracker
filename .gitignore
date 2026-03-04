@@ -176,3 +176,6 @@ cython_debug/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Scraper
+scrape_buffer.jsonl

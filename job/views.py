@@ -1,6 +1,14 @@
 # from django_filters import OrderingFilter
+from collections import defaultdict, Counter
+from datetime import timedelta
+import json
+
+from dateutil.relativedelta import relativedelta
+from django.db.models import DateField, Count, Q, FloatField, ExpressionWrapper, F, OuterRef, Subquery, IntegerField, Case, When, Value, Avg, DurationField
+from django.db.models.functions import Now, Trunc, TruncDate, Coalesce, Round, Cast
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -30,6 +38,296 @@ class JobViewSet(ModelViewSet):
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_class = JobFilter
 
+    @action(detail=False, methods=["get"], url_path="status-trends")
+    def status_trends(self, request):
+
+        # You can dynamically change this to 'day', 'week', 'month', 'quarter', or 'year'
+        start_date = request.GET.get("date_from") or Now() - timedelta(days=7)
+        end_date = request.GET.get("date_to") or Now()
+        frequency = request.GET.get("frequency") or 'day'
+
+
+        base_jobs = self.queryset.exclude(status__in=['NA', 'IG'])
+
+        # 2. Execute the queries using your DB expressions
+        # We wrap them in list() to force the DB to execute and give us the data now
+        applied_data = list(
+            base_jobs
+            .filter(applied_on__range=(start_date, end_date))
+            .annotate(period=Trunc('applied_on', kind=frequency, output_field=DateField()))
+            .values('period')
+            .annotate(applied_count=Count('id'))
+        )
+
+        other_status_data = list(
+            base_jobs
+            .exclude(status='AF')
+            .filter(last_interaction__range=(start_date, end_date))
+            .annotate(period=Trunc('last_interaction', kind=frequency, output_field=DateField()))
+            .values('period', 'status')
+            .annotate(status_count=Count('id'))
+        )
+
+        # 3. Extract all the dates the database calculated for us
+        all_returned_dates = [
+            item['period'] for item in applied_data + other_status_data if item['period']
+        ]
+
+        timeline = defaultdict(lambda: {"status_breakdown": {}})
+
+        # 4. Generate the continuous timeline in Python based on DB results
+        if all_returned_dates:
+            # Get the earliest and latest dates from our DB results
+            current_date = min(all_returned_dates)
+            actual_end_date = max(all_returned_dates)
+
+            # --- THE TRULY DYNAMIC STEP ---
+            if not frequency:
+                step = relativedelta(days=1)
+            elif frequency == 'quarter':
+                step = relativedelta(months=3)
+            else:
+                step = relativedelta(**{f'{frequency}s': 1})
+
+            while current_date <= actual_end_date:
+                date_str = current_date.strftime('%Y-%m-%d')
+                timeline[date_str] = {"status_breakdown": {}}
+                current_date += step
+
+        # 5. Populate the timeline just like before
+        for item in applied_data:
+            if not item['period']: continue
+            period_str = item['period'].strftime('%Y-%m-%d')
+            timeline[period_str]["status_breakdown"]["AF"] = item['applied_count']
+
+        for item in other_status_data:
+            if not item['period']: continue
+            period_str = item['period'].strftime('%Y-%m-%d')
+            timeline[period_str]["status_breakdown"][item['status']] = item['status_count']
+
+        final_timeline = [{"period": key, **value } for key, value in dict(timeline).items()]
+        return Response(final_timeline)
+
+    @action(detail=False, methods=["get"], url_path="daily-count")
+    def daily_count(self, request):
+        return Response({
+            "applied_today": self.queryset.filter(
+                applied_on=TruncDate(Now())
+            ).count()
+        })
+
+    @action(detail=False, methods=["get"], url_path="summary")
+    def summary(self, request):
+        base_jobs = self.queryset.exclude(status='IG')
+
+        is_applied = Q(applied_on__isnull=False)
+        is_response = is_applied & ~Q(status__in=['AF', 'NA', 'RE'])
+        is_offer = Q(status='OR')
+
+        metrics = base_jobs.aggregate(
+            total_applications=Count('id', filter=is_applied),
+            response_rate=Coalesce(
+                Round(
+                    ExpressionWrapper(
+                        Count('id', filter=is_response) * 100.0 / Count('id', filter=is_applied),
+                        output_field=FloatField()
+                    ), 1
+                ), 0.0
+            ),
+            interview_conversion_rate=Coalesce(
+                Round(
+                    ExpressionWrapper(
+                        Count('id', filter=is_offer) * 100.0 / Count('id', filter=is_applied),
+                        output_field=FloatField()
+                    ), 1
+                ), 0.0
+            )
+        )
+
+        status_breakdown = list(base_jobs.values('status').annotate(count=Count('id')))
+        status_dict = {item['status']: item['count'] for item in status_breakdown}
+
+        avg_response = base_jobs.filter(
+            applied_on__isnull=False,
+            last_interaction__isnull=False,
+        ).filter(is_response).aggregate(
+            avg_duration=Coalesce(
+                Avg(ExpressionWrapper(
+                    F('last_interaction') - F('applied_on'),
+                    output_field=DurationField()
+                )),
+                Value(timedelta(0))
+            )
+        )
+
+        return Response({
+            "total_applications": metrics['total_applications'],
+            "response_rate": metrics['response_rate'],
+            "avg_days_to_response": avg_response['avg_duration'].days,
+            "interview_conversion_rate": metrics['interview_conversion_rate'],
+            "status_breakdown": status_dict
+        })
+
+    @action(detail=False, methods=["get"], url_path="channels")
+    def channels(self, request):
+        base_jobs = self.queryset.exclude(status='IG').filter(applied_on__isnull=False)
+        
+        is_response = ~Q(status__in=['AF', 'NA', 'RE'])
+        is_interview = Q(status__in=['IS', 'NE', 'OR'])
+
+        channel_stats = base_jobs.annotate(name=F('platform')).values('name').annotate(
+            applications=Count('id'),
+            responses=Count('id', filter=is_response),
+            interviews=Count('id', filter=is_interview),
+            response_rate=Coalesce(
+                Round(
+                    ExpressionWrapper(
+                        Count('id', filter=is_response) * 100.0 / Count('id'),
+                        output_field=FloatField()
+                    ), 1
+                ), 0.0
+            )
+        )
+
+        return Response({"channels": list(channel_stats)})
+
+    @action(detail=False, methods=["get"], url_path="tech-demand")
+    def tech_demand(self, request):
+        
+        limit = int(request.GET.get('limit', 20))
+        base_jobs = self.queryset.exclude(status='IG')
+        
+        # Calculate denominator for percentages
+        total_jobs_with_tech = base_jobs.exclude(tech_stack_all__isnull=True).exclude(tech_stack_all__exact='').count()
+
+        # Fetch all target techs to check
+        all_techs = TechStack.objects.values_list('name', flat=True)
+
+        aggregation_kwargs = {}
+        alias_to_name_map = {}
+
+        # Build dynamic pivot columns for single database pass calculation
+        for i, tech_name in enumerate(all_techs):
+            safe_alias = f"t_{i}"
+            alias_to_name_map[safe_alias] = tech_name
+            aggregation_kwargs[safe_alias] = Count(
+                Case(
+                    When(tech_stack_all__icontains=f'"{tech_name}"', then=1),
+                    output_field=IntegerField()
+                )
+            )
+
+        # Single-pass execution on Database (takes ~0.5s instead of 190s)
+        tech_counts_raw = base_jobs.aggregate(**aggregation_kwargs)
+
+        whens = []
+        for safe_alias, count in tech_counts_raw.items():
+            if count and count > 0:
+                tech_name = alias_to_name_map[safe_alias]
+                whens.append(When(name=tech_name, then=Value(count)))
+        
+        if whens:
+            
+            top_techs = TechStack.objects.annotate(
+                count=Case(*whens, default=Value(0), output_field=IntegerField())
+            ).filter(count__gt=0).annotate(
+                percentage=Round(
+                    Cast(F('count') * 100, FloatField()) / Value(total_jobs_with_tech if total_jobs_with_tech > 0 else 1, output_field=FloatField()), 
+                    1
+                )
+            ).order_by('-count')[:limit]
+        else:
+            top_techs = TechStack.objects.none()
+
+        # # Format the response
+        # response_data = []
+        # for tech in top_techs:
+        #     response_data.append({
+        #         "name": tech.name,
+        #         "count": tech.count,
+        #         "percentage": round(tech.percentage, 1) if tech.percentage else 0.0
+        #     })
+            
+        return Response(
+            {"tech_demand": top_techs.values('name', 'count', 'percentage')}
+        )
+
+    @action(detail=False, methods=["get"], url_path="velocity")
+    def velocity(self, request):
+        period = request.GET.get('period', 'week')
+        
+        now = timezone.localtime(timezone.now()).date()
+        
+        # Target logic: assume a default target or param. E.g., 20 per day.
+        daily_target = 50  
+        
+        if period == 'week':
+            # Current week starting Sunday (isoweekday: Mon=1, Sun=7)
+            days_since_sunday = now.isoweekday() % 7  # Sun=0, Mon=1, ..., Sat=6
+            start_date = now - timedelta(days=days_since_sunday)
+        elif period == 'month':
+            start_date = now - relativedelta(months=1)
+        else:
+            start_date = now - timedelta(days=6) # fallback
+            
+        applied_jobs = self.queryset.filter(applied_on__range=(start_date, now))\
+            .values('applied_on')\
+            .annotate(applications=Count('id'))\
+            .order_by('applied_on')
+            
+        # Map to dict
+        actual_data = {item['applied_on']: item['applications'] for item in applied_jobs}
+        
+        # Calculate end of period
+        if period == 'week':
+            end_date = start_date + timedelta(days=6)  # Full Sun-Sat
+        elif period == 'month':
+            end_date = now
+        else:
+            end_date = now
+
+        daily_breakdown = []
+        current_date = start_date
+        total_actual = 0
+        
+        while current_date <= end_date:
+            if current_date <= now:
+                apps = actual_data.get(current_date, 0)
+                total_actual += apps
+            else:
+                apps = None  # Future day
+            daily_breakdown.append({
+                "date": current_date.strftime('%Y-%m-%d'),
+                "applications": apps,
+                "target": daily_target
+            })
+            current_date += timedelta(days=1)
+            
+        total_days = (end_date - start_date).days + 1
+        total_target = daily_target * total_days
+
+        return Response({
+            "period": period,
+            "target": total_target,
+            "actual": total_actual,
+            "daily_breakdown": daily_breakdown
+        })
+
+    @action(detail=False, methods=["get"], url_path="ghosting")
+    def ghosting(self, request):
+        days_threshold = int(request.GET.get('days_threshold', 14))
+        
+        cutoff_date = timezone.localtime(timezone.now()).date() - timedelta(days=days_threshold)
+        
+        total_ghosted = self.queryset.filter(
+            status='AF',
+            applied_on__lte=cutoff_date
+        ).count()
+
+        return Response({
+            "threshold_days": days_threshold,
+            "total_ghosted": total_ghosted,
+        })
 
 class TechStackViewSet(ModelViewSet):
     queryset = TechStack.objects.all()
@@ -44,240 +342,4 @@ class PostingViewSet(ModelViewSet):
     serializer_class = PostingSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = PostingFilter
-
-
-class DailyCountView(APIView):
-
-    def get(self, request, *args, **kwargs):
-        return Response({
-            "applied_today": Job.objects.filter(applied_on=timezone.localtime(timezone.now()).date()).count()
-        })
-
-
-## 📊 Analytics Module
-
-
-
-class AnalyticViewSet(ViewSet):
-
-    def list(self, request, pk=None):
-        """
-        ### 1. Get Analytics Summary
-
-        **Endpoint**: `GET /analytics/summary`
-
-        **Description**: Returns overall statistics for the analytics dashboard.
-        """
-        return Response(
-            {
-                "total_applications": 245,
-                "response_rate": 18.5,
-                "avg_days_to_response": 7.2,
-                "interview_conversion_rate": 12.3,
-                "status_breakdown": {
-                    "IG": 45,
-                    "NA": 120,
-                    "AF": 60,
-                    "CR": 12,
-                    "IS": 5,
-                    "RP": 2,
-                    "RE": 30,
-                    "OR": 1
-                }
-            }
-        )
-
-
-class AnalticsChannelViewSet(ViewSet):
-
-    def list(self, request):
-        """
-        ### 2. Get Channel Performance
-        **Endpoint**: `GET /analytics/channels`
-
-        **Description**: Performance metrics by application channel.
-        """
-        return Response(
-            {
-                "channels": [
-                    {
-                        "name": "LinkedIn",
-                        "applications": 120,
-                        "responses": 25,
-                        "response_rate": 20.8,
-                        "interviews": 8
-                    },
-                    {
-                        "name": "Naukri",
-                        "applications": 80,
-                        "responses": 12,
-                        "response_rate": 15.0,
-                        "interviews": 3
-                    },
-                    {
-                        "name": "Direct",
-                        "applications": 30,
-                        "responses": 8,
-                        "response_rate": 26.7,
-                        "interviews": 4
-                    },
-                    {
-                        "name": "Referral",
-                        "applications": 15,
-                        "responses": 10,
-                        "response_rate": 66.7,
-                        "interviews": 6
-                    }
-                ]
-            }
-        )
-
-
-class AnalyticsTechDemandViewSet(ViewSet):
-
-    def list(self, request):
-        """
-        ### 3. Get Tech Stack Demand
-        **Endpoint**: `GET /analytics/tech-demand`
-
-        **Description**: Most requested technologies across all job postings.
-
-        **Query Parameters**:
-        - `limit` (optional, default: 20) - Number of top technologies to return
-        """
-        return Response(
-            {
-                "tech_demand": [
-                    {
-                        "name": "Python",
-                        "count": 180,
-                        "percentage": 73.5
-                    },
-                    {
-                        "name": "React",
-                        "count": 95,
-                        "percentage": 38.8
-                    },
-                    {
-                        "name": "Docker",
-                        "count": 85,
-                        "percentage": 34.7
-                    },
-                    {
-                        "name": "FastAPI",
-                        "count": 70,
-                        "percentage": 28.6
-                    },
-                    {
-                        "name": "Kubernetes",
-                        "count": 60,
-                        "percentage": 24.5
-                    }
-                ]
-            }
-        )
-
-
-class AnalyticsVelocityViewSet(ViewSet):
-
-    def list(self, request):
-        """
-        ### 4. Get Application Velocity
-        **Endpoint**: `GET /analytics/velocity`
-
-        **Description**: Daily/weekly application tracking.
-
-        **Query Parameters**:
-        - `period` (optional, default: "week") - "day", "week", or "month"
-        """
-        return Response(
-            {
-                "period": "week",
-                "target": 140,
-                "actual": 132,
-                "daily_breakdown": [
-                    {
-                        "date": "2024-12-01",
-                        "applications": 22,
-                        "target": 20
-                    },
-                    {
-                        "date": "2024-12-02",
-                        "applications": 18,
-                        "target": 20
-                    },
-                    {
-                        "date": "2024-12-03",
-                        "applications": 25,
-                        "target": 20
-                    },
-                    {
-                        "date": "2024-12-04",
-                        "applications": 19,
-                        "target": 20
-                    },
-                    {
-                        "date": "2024-12-05",
-                        "applications": 21,
-                        "target": 20
-                    },
-                    {
-                        "date": "2024-12-06",
-                        "applications": 15,
-                        "target": 20
-                    },
-                    {
-                        "date": "2024-12-07",
-                        "applications": 12,
-                        "target": 20
-                    }
-                ]
-            }
-        )
-
-
-class AnalyticsGhostingViewSet(ViewSet):
-
-    def list(self, request):
-        """
-        ### 5. Get Ghosting Analysis
-        **Endpoint**: `GET /analytics/ghosting`
-
-        **Description**: Jobs with no response after specified days.
-
-        **Query Parameters**:
-        - `days_threshold` (optional, default: 14) - Days without response
-        """
-        return Response(
-            {
-                "threshold_days": 14,
-                "total_ghosted": 87,
-                "ghosted_jobs": [
-                    {
-                        "id": 123,
-                        "company": "TechCorp",
-                        "position": "Senior Developer",
-                        "applied_on": "2024-11-15",
-                        "days_since_application": 18,
-                        "channel": "LinkedIn"
-                    },
-                    {
-                        "id": 124,
-                        "company": "StartupXYZ",
-                        "position": "Backend Engineer",
-                        "applied_on": "2024-11-10",
-                        "days_since_application": 23,
-                        "channel": "Naukri"
-                    },
-                    {
-                        "id": 125,
-                        "company": "FinTech Inc",
-                        "position": "Python Developer",
-                        "applied_on": "2024-11-08",
-                        "days_since_application": 25,
-                        "channel": "Direct"
-                    }
-                ]
-            }
-        )
 

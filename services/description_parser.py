@@ -30,64 +30,156 @@ class AdvancedJobParser:
             'languages': [
                 'python', 'java', 'javascript', 'typescript', 'c++', 'c#', 'csharp',
                 'go', 'golang', 'ruby', 'php', 'swift', 'kotlin', 'rust', 'scala',
-                'r', 'matlab', 'perl', 'shell', 'bash', 'powershell', 'dart'
+                'r', 'matlab', 'perl', 'shell', 'bash', 'powershell', 'dart',
+                'lua', 'elixir', 'haskell', 'groovy', 'clojure', 'objective-c',
+                'solidity', 'zig', 'julia', 'fortran', 'cobol', 'sql', 'plsql',
+                'pl/sql', 'vba', 'assembly'
             ],
             'frameworks': [
                 'django', 'flask', 'fastapi', 'spring', 'spring boot', 'react',
                 'reactjs', 'angular', 'vue', 'vue.js', 'vuejs', 'node.js', 'nodejs',
                 'express', 'expressjs', 'next.js', 'nextjs', 'nuxt', 'laravel',
                 'rails', 'ruby on rails', '.net', 'dotnet', 'asp.net', 'blazor',
-                'svelte', 'ember', 'backbone', 'meteor'
+                'svelte', 'ember', 'backbone', 'meteor',
+                'nestjs', 'nest.js', 'fastify', 'hapi', 'koa', 'gin', 'fiber',
+                'echo', 'phoenix', 'quarkus', 'micronaut', 'ktor', 'actix',
+                'rocket', 'deno', 'bun', 'remix', 'gatsby', 'astro',
+                'starlette', 'sanic', 'tornado', 'aiohttp', 'bottle',
+                'dropwizard', 'play framework', 'struts', 'hibernate',
+                'celery', 'dramatiq', 'huey'
             ],
             'databases': [
                 'mysql', 'postgresql', 'postgres', 'mongodb', 'mongo', 'redis',
                 'cassandra', 'oracle', 'sql server', 'mssql', 'sqlite', 'dynamodb',
                 'elasticsearch', 'mariadb', 'couchdb', 'neo4j', 'firebase',
-                'firestore', 'couchbase', 'influxdb', 'timescaledb'
+                'firestore', 'couchbase', 'influxdb', 'timescaledb',
+                'cockroachdb', 'snowflake', 'redshift', 'bigquery', 'clickhouse',
+                'supabase', 'planetscale', 'fauna', 'faunadb', 'memcached',
+                'opensearch', 'solr', 'arangodb', 'dgraph', 'scylladb',
+                'vitess', 'tidb', 'yugabytedb', 'etcd', 'amazon aurora',
+                'cosmos db', 'cosmosdb', 'documentdb'
             ],
             'cloud': [
                 'aws', 'amazon web services', 'azure', 'microsoft azure', 'gcp',
                 'google cloud', 'google cloud platform', 'heroku', 'digitalocean',
                 'linode', 'cloudflare', 'vercel', 'netlify', 's3', 'ec2', 'lambda',
-                'rds', 'cloudfront', 'route53'
+                'rds', 'cloudfront', 'route53',
+                'eks', 'ecs', 'fargate', 'sagemaker', 'glue', 'athena', 'emr',
+                'kinesis', 'step functions', 'eventbridge', 'api gateway',
+                'cloud run', 'cloud functions', 'cloud storage', 'app engine',
+                'azure functions', 'azure devops', 'aks', 'blob storage',
+                'oracle cloud', 'oci', 'alibaba cloud', 'ibm cloud',
+                'elastic beanstalk', 'lightsail', 'amplify',
+                'cloudwatch', 'cloud formation', 'cloudformation', 'cdk'
             ],
             'devops': [
-                'docker', 'kubernetes', 'k8s', 'jenkins', 'gitlab', 'github actions',
+                'docker', 'kubernetes', 'k8s', 'jenkins', 'gitlab ci', 'github actions',
                 'terraform', 'ansible', 'chef', 'puppet', 'circleci', 'travis ci',
-                'bamboo', 'octopus', 'spinnaker', 'argo', 'flux', 'helm'
+                'bamboo', 'octopus', 'spinnaker', 'argo', 'flux', 'helm',
+                'vagrant', 'packer', 'pulumi', 'crossplane', 'istio', 'envoy',
+                'linkerd', 'consul', 'vault', 'nomad', 'rancher', 'openshift',
+                'tekton', 'drone ci', 'buildkite', 'harness', 'argocd',
+                'skaffold', 'kustomize', 'podman', 'containerd',
+                'sonarqube', 'nexus', 'artifactory', 'trivy', 'snyk'
             ],
             'tools': [
                 'git', 'github', 'gitlab', 'bitbucket', 'jira', 'confluence',
                 'postman', 'swagger', 'insomnia', 'vs code', 'visual studio',
-                'intellij', 'pycharm', 'eclipse', 'vim', 'emacs', 'sublime'
+                'intellij', 'pycharm', 'eclipse', 'vim', 'emacs', 'sublime',
+                'notion', 'slack', 'trello', 'asana', 'linear', 'figma',
+                'datadog', 'new relic', 'splunk', 'pagerduty', 'opsgenie',
+                'openapi', 'graphiql', 'wireshark', 'fiddler',
+                'terminal', 'tmux', 'zsh', 'warp', 'docker desktop'
             ],
             'api': [
                 'rest', 'rest api', 'restful', 'graphql', 'grpc', 'soap',
-                'websocket', 'api gateway', 'microservices', 'json', 'xml'
+                'websocket', 'api gateway', 'microservices', 'json', 'xml',
+                'protobuf', 'protocol buffers', 'thrift', 'avro', 'openapi',
+                'swagger', 'postman', 'webhooks', 'server-sent events', 'sse',
+                'jsonapi', 'odata', 'hateoas', 'rpc', 'mqtt', 'amqp'
             ],
             'frontend': [
                 'html', 'html5', 'css', 'css3', 'sass', 'scss', 'less', 'bootstrap',
                 'tailwind', 'tailwindcss', 'material ui', 'mui', 'webpack', 'vite',
                 'rollup', 'parcel', 'gulp', 'grunt', 'jquery', 'redux', 'mobx',
-                'recoil', 'zustand'
+                'recoil', 'zustand',
+                'chakra ui', 'ant design', 'antd', 'styled-components', 'emotion',
+                'shadcn', 'radix', 'headless ui', 'storybook', 'turborepo',
+                'pnpm', 'yarn', 'npm', 'esbuild', 'swc', 'babel', 'prettier',
+                'eslint', 'stylelint', 'postcss', 'three.js', 'threejs', 'd3',
+                'd3.js', 'chart.js', 'recharts', 'framer motion', 'gsap',
+                'react query', 'tanstack', 'swr', 'axios', 'pwa'
             ],
             'data_science': [
                 'pandas', 'numpy', 'scikit-learn', 'sklearn', 'tensorflow', 'pytorch',
                 'keras', 'opencv', 'nltk', 'spacy', 'jupyter', 'matplotlib', 'seaborn',
-                'plotly', 'spark', 'pyspark', 'hadoop', 'airflow', 'dask', 'rapids'
+                'plotly', 'spark', 'pyspark', 'hadoop', 'airflow', 'dask', 'rapids',
+                'xgboost', 'lightgbm', 'catboost', 'hugging face', 'huggingface',
+                'transformers', 'langchain', 'llamaindex', 'openai', 'gpt',
+                'bert', 'llm', 'rag', 'vector database', 'pinecone', 'weaviate',
+                'milvus', 'chroma', 'qdrant', 'faiss', 'stable diffusion',
+                'mlflow', 'wandb', 'optuna', 'ray', 'polars', 'vaex',
+                'scipy', 'statsmodels', 'prophet', 'databricks', 'snowpark',
+                'feature store', 'feast', 'great expectations'
             ],
             'testing': [
                 'pytest', 'unittest', 'jest', 'mocha', 'chai', 'jasmine', 'selenium',
                 'cypress', 'playwright', 'puppeteer', 'junit', 'testng', 'cucumber',
-                'behave', 'robot framework'
+                'behave', 'robot framework',
+                'vitest', 'testing library', 'react testing library', 'enzyme',
+                'mock', 'mockito', 'powermock', 'wiremock', 'locust', 'gatling',
+                'k6', 'jmeter', 'artillery', 'postman tests', 'supertest',
+                'hypothesis', 'faker', 'factory boy', 'nunit', 'xunit',
+                'appium', 'detox', 'storybook', 'chromatic', 'percy',
+                'sonarqube', 'codecov', 'coveralls'
             ],
             'messaging': [
                 'rabbitmq', 'kafka', 'apache kafka', 'redis pub/sub', 'celery',
-                'sqs', 'sns', 'google pub/sub', 'nats', 'activemq'
+                'sqs', 'sns', 'google pub/sub', 'nats', 'activemq',
+                'zeromq', 'mqtt', 'amazon msk', 'confluent', 'pulsar',
+                'apache pulsar', 'amazon kinesis', 'event hub', 'azure service bus',
+                'redis streams', 'bull', 'bullmq', 'sidekiq', 'resque'
             ],
             'web_servers': [
                 'nginx', 'apache', 'apache tomcat', 'iis', 'gunicorn', 'uwsgi',
-                'passenger', 'puma'
+                'passenger', 'puma',
+                'caddy', 'traefik', 'haproxy', 'envoy', 'uvicorn', 'hypercorn',
+                'daphne', 'lighttpd', 'varnish'
+            ],
+            'security': [
+                'oauth', 'oauth2', 'jwt', 'json web token', 'saml', 'sso',
+                'single sign-on', 'ldap', 'active directory', 'keycloak',
+                'auth0', 'okta', 'cognito', 'firebase auth', 'owasp',
+                'ssl', 'tls', 'https', 'cors', 'csrf', 'xss',
+                'encryption', 'hashing', 'bcrypt', 'argon2',
+                'rbac', 'abac', 'iam', 'kms', 'secrets manager',
+                'vault', 'certbot', 'letsencrypt', 'mfa', '2fa',
+                'penetration testing', 'sast', 'dast', 'snyk', 'trivy',
+                'sonarqube', 'checkmarx', 'fortify'
+            ],
+            'monitoring': [
+                'prometheus', 'grafana', 'datadog', 'new relic', 'elk stack',
+                'elasticsearch', 'logstash', 'kibana', 'splunk', 'nagios',
+                'zabbix', 'dynatrace', 'appdynamics', 'cloudwatch',
+                'sentry', 'rollbar', 'bugsnag', 'pagerduty', 'opsgenie',
+                'jaeger', 'zipkin', 'opentelemetry', 'otel', 'fluentd',
+                'fluentbit', 'loki', 'tempo', 'mimir', 'thanos',
+                'victoriametrics', 'signoz', 'uptimerobot'
+            ],
+            'mobile': [
+                'react native', 'flutter', 'swiftui', 'jetpack compose',
+                'xamarin', 'ionic', 'cordova', 'capacitor', 'expo',
+                'kotlin multiplatform', 'kmp', 'maui', '.net maui'
+            ],
+            'big_data': [
+                'spark', 'pyspark', 'hadoop', 'hive', 'hbase', 'pig',
+                'flink', 'apache flink', 'beam', 'apache beam',
+                'presto', 'trino', 'druid', 'apache druid',
+                'nifi', 'apache nifi', 'sqoop', 'flume', 'oozie',
+                'delta lake', 'iceberg', 'apache iceberg', 'hudi',
+                'dbt', 'fivetran', 'airbyte', 'stitch', 'talend',
+                'informatica', 'datastax', 'cloudera', 'hortonworks',
+                'databricks', 'palantir', 'redpanda'
             ]
         }
 

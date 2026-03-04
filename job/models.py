@@ -23,6 +23,7 @@ PLATFORM = {
 
 # Create your models here.
 class Job(models.Model):
+    platform = models.CharField(max_length=16, choices=PLATFORM)
     company = models.CharField(max_length=64)
     recruiter = models.CharField(max_length=64, null=True)
     contact = models.CharField(max_length=16, null=True)
@@ -37,8 +38,9 @@ class Job(models.Model):
     experience_min = models.IntegerField(null=True)
     experience_max = models.IntegerField(null=True)
     tech_stack_primary = models.CharField(max_length=256)
-    tech_stack_all = models.CharField(max_length=256)
+    tech_stack_all = models.CharField(max_length=512)
     salary = models.CharField(max_length=64, null=True)
+    ratings = models.CharField(max_length=64, null=True)
     last_interaction = models.DateField(null=True)
     applied_on = models.DateField(null=True)
     last_posted = models.DateField()
@@ -71,7 +73,7 @@ class FormData(models.Model):
 
 
 class Session(models.Model):
-    platform = models.CharField(max_length=16, choices=PLATFORM)
+    platform = models.CharField(max_length=16, choices=PLATFORM, unique=True)
     data = models.TextField()
 
     def __str__(self):
@@ -88,6 +90,7 @@ class JobUrl(models.Model):
 
 
 class JobRaw(models.Model):
+    platform = models.CharField(max_length=16, choices=PLATFORM)
     job_id = models.CharField(max_length=64)
     description = models.TextField()
     company = models.CharField(max_length=64)

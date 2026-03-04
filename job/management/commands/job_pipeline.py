@@ -1,10 +1,10 @@
 from django.core.management.base import BaseCommand, CommandError
 
-from scripts.tracker import linkedin_filtered_job_pipeline_caller, linkedin_recommended_job_pipeline_caller
+from scripts.tracker import run_job_pipeline
 
 
 class Command(BaseCommand):
-    help = "Scan and Store URLs for Jobs"
+    help = "Run the full job pipeline (scan -> add -> parse)"
 
     def add_arguments(self, parser):
         self.parser = parser
@@ -12,9 +12,10 @@ class Command(BaseCommand):
             '-s',
             '--source',
             type=str,
-            choices=['linkedin'],
-            required=True,
-            help='Job source to scan',
+            choices=['linkedin', 'naukri'],
+            nargs='*',
+            default=[],
+            help='Job source to run pipeline for',
         )
         parser.add_argument(
             '-t',
@@ -23,19 +24,20 @@ class Command(BaseCommand):
             choices=['recommended', 'filtered'],
             help='Job type to scan and search',
         )
+        parser.add_argument(
+            '--sync',
+            action='store_true',
+            help='Run synchronously instead of dispatching to Celery',
+        )
 
     def handle(self, *args, **options):
-        if options["source"] == 'linkedin':
-            if not options["type"]:
-                # raise CommandError("Type is required: (--type or -t)")
-                self.parser.error("the following arguments are required: -t/--type")
-            if options['type'] == 'recommended':
-                linkedin_recommended_job_pipeline_caller()
-                self.stdout.write(
-                    self.style.SUCCESS('LinkedIn Recommended Pipeline Started')
-                )
-            if options['type'] == 'filtered':
-                linkedin_filtered_job_pipeline_caller()
-                self.stdout.write(
-                    self.style.SUCCESS('LinkedIn Filtered Pipeline Started')
-                )
+        if 'linkedin' in options["source"] and not options["type"]:
+            self.parser.error("the following arguments are required: -t/--type")
+
+        run_job_pipeline(sources=options["source"], scan_type=options["type"], sync=options["sync"])
+        
+        sync_str = "Synchronous" if options["sync"] else "Asynchronous"
+        msg_suffix = f" {options['type']}" if options["type"] else ""
+        self.stdout.write(
+            self.style.SUCCESS(f'{sync_str} Pipeline Started for {options["source"]}{msg_suffix}')
+        )
