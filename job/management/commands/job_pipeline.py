@@ -35,7 +35,7 @@ class Command(BaseCommand):
             self.parser.error("the following arguments are required: -t/--type")
 
         run_job_pipeline(sources=options["source"], scan_type=options["type"], sync=options["sync"])
-        
+
         sync_str = "Synchronous" if options["sync"] else "Asynchronous"
         msg_suffix = f" {options['type']}" if options["type"] else ""
         self.stdout.write(

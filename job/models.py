@@ -43,6 +43,7 @@ class Job(models.Model):
     ratings = models.CharField(max_length=64, null=True)
     last_interaction = models.DateField(null=True)
     applied_on = models.DateField(null=True)
+    first_response_date = models.DateField(null=True)
     last_posted = models.DateField()
 
     def save(self, *args, **kwargs):

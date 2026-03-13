@@ -22,6 +22,7 @@ class CustomCursorPagination(CursorPagination):
             'page_size': self.get_page_size(self.request),
             'next_param_object': next_param_object,
             'previous_param_object': previous_param_object,
+            'current_param_object': self.request.query_params.dict(),
             # 'count': self.page.paginator.count,
             'results': data
         })

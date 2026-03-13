@@ -144,16 +144,13 @@ class JobViewSet(ModelViewSet):
             )
         )
 
-        status_breakdown = list(base_jobs.values('status').annotate(count=Count('id')))
-        status_dict = {item['status']: item['count'] for item in status_breakdown}
-
         avg_response = base_jobs.filter(
             applied_on__isnull=False,
-            last_interaction__isnull=False,
+            first_response_date__isnull=False,
         ).filter(is_response).aggregate(
             avg_duration=Coalesce(
                 Avg(ExpressionWrapper(
-                    F('last_interaction') - F('applied_on'),
+                    F('first_response_date') - F('applied_on'),
                     output_field=DurationField()
                 )),
                 Value(timedelta(0))
@@ -165,7 +162,6 @@ class JobViewSet(ModelViewSet):
             "response_rate": metrics['response_rate'],
             "avg_days_to_response": avg_response['avg_duration'].days,
             "interview_conversion_rate": metrics['interview_conversion_rate'],
-            "status_breakdown": status_dict
         })
 
     @action(detail=False, methods=["get"], url_path="channels")
@@ -259,7 +255,7 @@ class JobViewSet(ModelViewSet):
         now = timezone.localtime(timezone.now()).date()
         
         # Target logic: assume a default target or param. E.g., 20 per day.
-        daily_target = 50  
+        daily_target = 20
         
         if period == 'week':
             # Current week starting Sunday (isoweekday: Mon=1, Sun=7)
@@ -324,9 +320,13 @@ class JobViewSet(ModelViewSet):
             applied_on__lte=cutoff_date
         ).count()
 
+        base_jobs = self.queryset.exclude(status='IG')
+        status_breakdown = base_jobs.values('status').annotate(count=Count('id'))
+
         return Response({
             "threshold_days": days_threshold,
             "total_ghosted": total_ghosted,
+            "status_breakdown": status_breakdown
         })
 
 class TechStackViewSet(ModelViewSet):

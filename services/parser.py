@@ -68,7 +68,7 @@ NAUKRI_FILTERED = (
 
 NAUKRI_FILTERED_2 = (
     "https://www.naukri.com/python-django-senior-jobs?"
-    "experience=4"
+    "experience=5"
     "&cityTypeGid=6"
     "&cityTypeGid=72"
     "&cityTypeGid=73"
@@ -77,12 +77,12 @@ NAUKRI_FILTERED_2 = (
     "&cityTypeGid=350"
     "&cityTypeGid=9508"
     "&jobAge=1"
-    "&functionAreaIdGid=3"
+    # "&functionAreaIdGid=3"
     "&functionAreaIdGid=5"
-    "&glbl_qcrc=1019"
-    "&glbl_qcrc=1020"
-    "&glbl_qcrc=1025"
-    "&glbl_qcrc=1026"
+    # "&glbl_qcrc=1019"
+    # "&glbl_qcrc=1020"
+    # "&glbl_qcrc=1025"
+    # "&glbl_qcrc=1026"
     "&glbl_qcrc=1028"
     "&ctcFilter=10to15"
     "&ctcFilter=25to50"
@@ -308,7 +308,7 @@ class Parser:
 
         job_id_list = []
         for url in urls:
-            self.page.goto(url)
+            self.page.goto(url, wait_until='domcontentloaded')
             time.sleep(2)
             self.check_logged_in(url)
 
@@ -404,6 +404,34 @@ class Parser:
         except:
             pass
 
+        # Fix Key Skills concatenation — extract chips individually
+        try:
+            chips = self.page.locator('div[class*="key-skill"] a[class*="chip"]').all()
+
+            key_skill_div = self.page.locator('div[class*="key-skill"]')
+            bad_blob = key_skill_div.inner_text() if key_skill_div.count() > 0 else ""
+
+            if chips:
+                preferred = []
+                required = []
+                for chip in chips:
+                    name = chip.locator('span').inner_text().strip()
+                    if chip.locator('i[class*="jd-save"]').count() > 0:
+                        preferred.append(name)
+                    else:
+                        required.append(name)
+                skills_text = "\nKey Skills"
+                if preferred:
+                    skills_text += f"\nPreferred: {', '.join(preferred)}"
+                if required:
+                    skills_text += f"\nOther: {', '.join(required)}"
+                # if "Key Skills" in description:
+                #     description = description[:description.index("Key Skills")] + skills_text
+                if bad_blob and bad_blob in description:
+                    description = description.replace(bad_blob, skills_text)
+        except:
+            pass  # If chip extraction fails, keep original description
+
         # Location
         location = self._clean_paragraph(
             self.page.locator('span[class*="jhc__location"]').first.inner_text()
@@ -432,21 +460,18 @@ class Parser:
         return 'NI', description, company, job_title, job_info
 
     def read_linkedin_jobs(self):
-        # start_time = time.time()
-        # print("Starting")
         time.sleep(2)
         try:
-            description = self.page.locator('h2:has-text("About the job") + div p').first.inner_text(timeout=10000)
+            description = self.page.locator('article.jobs-description__container').inner_text(timeout=10000)
         except Exception as e:
-            # print(f"First Fail: {start_time - time.time()}")
             try:
-                description = self.page.locator('h2:has-text("About the job") + div + div p').first.inner_text(timeout=10)
+                description = self.page.locator('h2:has-text("About the job") + div p').first.inner_text(timeout=10)
             except Exception as e:
-                # print(f"Second Fail: {start_time - time.time()}")
-                raise e
+                try:
+                    description = self.page.locator('h2:has-text("About the job") + div + div p').first.inner_text(timeout=10)
+                except Exception as e:
+                    raise e
 
-        # self.page.locator('#myReferenceElement + div:first-of-type')
-        # soup = BeautifulSoup(content, 'html.parser')
         company = self._clean_paragraph(
             self.page.locator('.job-details-jobs-unified-top-card__company-name').inner_text()
         )
