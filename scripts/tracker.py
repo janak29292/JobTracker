@@ -27,7 +27,11 @@ def scan_job_urls(sources=None, scan_type=None, sync=False):
         if sync:
             save_job_urls(source=source, scan_type=scan_type)
         else:
-            save_job_urls.delay(source=source, scan_type=scan_type)
+            scan_chain = [save_job_urls.si(source=source, scan_type=scan_type) for source in sources]
+            pipeline = chain(
+                *scan_chain
+            )
+            pipeline.delay()
 
 
 def add_raw_jobs(sync=False):

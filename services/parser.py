@@ -39,6 +39,14 @@ LINKEDIN_LOCATIONS = {
     "&geoId=90009626": "Greater Delhi Area"
 }
 
+LINKEDIN_LOCATIONS_2 = {
+    "&f_PP=104793846,", # gURGAON
+    "&f_PP=106442238", # GURUGRAM
+    "&f_PP=104869687", # nOIDA
+}
+
+LINKEDIN_LOCATIONS_2_STR = "&f_PP=104793846,106442238,104869687"
+
 
 # At the top of your file
 POSSIBLE_JOB_IDENTIFIERS = [
@@ -129,8 +137,12 @@ class Parser:
         """
         return ' '.join(text.split()).strip()
 
-    def _find_active_identifier(self):
-        """Find which job identifier LinkedIn is currently using"""
+    def _find_active_identifier(self, expected_count=None):
+        """Find which job identifier LinkedIn is currently using.
+        If expected_count is provided, prefers the identifier whose count
+        matches expected_count (to avoid picking suggestion cards over
+        filtered results). Falls back to highest count with a warning."""
+        identifier_counts = {}
         best_identifier = None
         best_count = 0
         for identifier in POSSIBLE_JOB_IDENTIFIERS:
@@ -140,13 +152,90 @@ class Parser:
                 if el.get_attribute(identifier) and re.match(r'^\d{10}$', el.get_attribute(identifier))
             )
             print(f"{identifier}: {count} valid IDs")
+            if count > 0:
+                identifier_counts[identifier] = count
             if count > best_count:
                 best_count = count
                 best_identifier = identifier
+
+        # If expected_count is provided, prefer the identifier that matches it
+        if expected_count is not None:
+            matching = [
+                (ident, cnt) for ident, cnt in identifier_counts.items()
+                if cnt == expected_count
+            ]
+            if matching:
+                selected, selected_count = matching[0]
+                print(
+                    f"✓ Selected: {selected} ({selected_count} IDs) — "
+                    f"matches expected header count ({expected_count})"
+                )
+                return selected
+            else:
+                # No exact match — fall back to highest count with warning
+                if best_identifier:
+                    print(
+                        f"⚠ WARNING: No identifier matches expected count ({expected_count}). "
+                        f"Falling back to highest: {best_identifier} ({best_count} IDs)"
+                    )
+                    return best_identifier
+
         if best_identifier:
             print(f"Selected: {best_identifier} ({best_count} IDs)")
             return best_identifier
         raise Exception("No valid job identifier found")
+
+    def _wait_for_job_list_header_linkedin(self):
+        """Wait for the LinkedIn search results header and extract the expected
+        total job count (e.g. '14 results' -> 14). Returns None if not found."""
+        try:
+            self.page.wait_for_selector(
+                '.jobs-search-results-list__subtitle span',
+                timeout=30000
+            )
+            subtitle = self.page.locator(
+                '.jobs-search-results-list__subtitle span'
+            ).first.inner_text().strip()
+            # e.g. "14 results" or "1,204 results"
+            match = re.search(r'([\d,]+)\s*result', subtitle)
+            if match:
+                count = int(match.group(1).replace(',', ''))
+                print(f"LinkedIn header: {subtitle} → expected {count} total jobs")
+                return count
+            print(f"LinkedIn header found but could not parse count: '{subtitle}'")
+            return None
+        except Exception as e:
+            print(f"⚠ Could not find LinkedIn results header: {e}")
+            return None
+
+    def _wait_for_job_list_header_naukri(self):
+        """Wait for the Naukri job list header and extract per-page expected
+        count and total. Parses '1 - 20 of 57' → {page_expected: 20, total: 57}.
+        Returns None if not found."""
+        try:
+            self.page.wait_for_selector(
+                'span[class*="count-string"], #jobs-list-header',
+                timeout=30000
+            )
+            count_el = self.page.locator('span[class*="count-string"]').first
+            count_text = count_el.inner_text().strip()
+            # e.g. "1 - 20 of 57" or "1 - 15 of 15"
+            match = re.search(r'(\d+)\s*-\s*(\d+)\s+of\s+(\d+)', count_text)
+            if match:
+                page_start = int(match.group(1))
+                page_end = int(match.group(2))
+                total = int(match.group(3))
+                page_expected = page_end - page_start + 1
+                print(
+                    f"Naukri header: '{count_text}' → "
+                    f"expecting {page_expected} jobs on this page, {total} total"
+                )
+                return {'page_expected': page_expected, 'total': total}
+            print(f"Naukri header found but could not parse: '{count_text}'")
+            return None
+        except Exception as e:
+            print(f"⚠ Could not find Naukri results header: {e}")
+            return None
 
     def _find_scrollable_parent(self, element):
         scrollable_parent = element.evaluate('''
@@ -220,7 +309,7 @@ class Parser:
                 )
                 self.__init__()
                 self.page.context.add_cookies(json.loads(cookies))
-                self.page.goto(redirect_url)
+                self.page.goto(redirect_url, wait_until='domcontentloaded')
                 time.sleep(2)
         elif 'https://www.naukri.com' in self.page.url:
             try:
@@ -255,24 +344,58 @@ class Parser:
             return self.scan_urls_naukri()
         return []
 
+    def _safe_goto(self, url, wait_until='load', retries=3, timeout=60000):
+        """Navigate to a URL with retries and longer timeout."""
+        for attempt in range(1, retries + 1):
+            try:
+                self.page.goto(url, wait_until=wait_until, timeout=timeout)
+                return
+            except Exception as e:
+                print(f"Navigation attempt {attempt}/{retries} failed for {url}: {e}")
+                if attempt < retries:
+                    time.sleep(2 * attempt)
+                else:
+                    raise
+
     def scan_urls_naukri(self):
         url = NAUKRI_FILTERED_2
-        self.page.goto(url)
+        self._safe_goto(url)
         time.sleep(2)
         self.check_logged_in(url)
 
         job_url_list = []
+        page_num = 0
         reading = True
         while reading:
+            page_num += 1
             try:
-                job_cards = self.page.locator(f'[data-job-id]')
-                # job_cards = self.page.locator('.srp-jobtuple-wrapper')
-                # # Scroll to bottom to load all cards
-                # self.page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
-                # time.sleep(2)
-                #
-                # job_cards = self.page.locator('.srp-jobtuple-wrapper')
-                print(f"Page count: {job_cards.count()}")
+                # Wait for the header to confirm page is loaded
+                header_info = self._wait_for_job_list_header_naukri()
+                page_expected = header_info['page_expected'] if header_info else None
+
+                job_cards = self.page.locator('[data-job-id]')
+                page_count = job_cards.count()
+                print(f"Page {page_num} card count: {page_count}")
+
+                # If 0 cards but header says there should be some, retry once
+                if page_count == 0 and page_expected and page_expected > 0:
+                    print(
+                        f"⚠ Page {page_num}: 0 cards found but header expects "
+                        f"{page_expected}. Waiting 5s and retrying..."
+                    )
+                    time.sleep(5)
+                    job_cards = self.page.locator('[data-job-id]')
+                    page_count = job_cards.count()
+                    print(f"Page {page_num} retry card count: {page_count}")
+
+                if page_expected is not None:
+                    if page_count == page_expected:
+                        print(f"✓ Page {page_num}: card count matches expected ({page_expected})")
+                    else:
+                        print(
+                            f"⚠ Page {page_num}: card count ({page_count}) differs from "
+                            f"expected ({page_expected})"
+                        )
 
                 job_id_page_list = [
                     card.locator('a.title').get_attribute('href') for card in job_cards.all()
@@ -286,14 +409,14 @@ class Parser:
                     next_button.click()
                     time.sleep(3)
                 except Exception as e:
-                    print(e)
                     reading = False
 
             except Exception as e:
-                print(f"Naukri scan error: {e}")
+                print(f"Naukri scan error on page {page_num}: {e}")
                 reading = False
 
         print(f"Naukri: Found {len(job_url_list)} job URLs")
+        print(f"FInished Reading : {url}")
         return job_url_list
 
     def scan_urls_linkedin(self, filtered=False):
@@ -301,21 +424,29 @@ class Parser:
         if filtered:
             urls = [
                 LINKEDIN_FILTERED + "&geoId=90009626",
-                LINKEDIN_FILTERED + "&geoId=104869687&distance=0"
+                LINKEDIN_FILTERED + "&geoId=104869687&distance=5"
             ]
+            # urls = [LINKEDIN_FILTERED + LINKEDIN_LOCATIONS_2_STR]
         else:
             urls = [LINKEDIN_RECOMMENDED]
 
         job_id_list = []
         for url in urls:
-            self.page.goto(url, wait_until='domcontentloaded')
+            self._safe_goto(url, wait_until='domcontentloaded')
             time.sleep(2)
             self.check_logged_in(url)
 
+            page_num = 0
             reading = True
             while reading:
+                page_num += 1
                 try:
-                    active_identifier = self._find_active_identifier()
+                    # Wait for header and get expected total job count
+                    expected_total = self._wait_for_job_list_header_linkedin()
+
+                    active_identifier = self._find_active_identifier(
+                        expected_count=expected_total
+                    )
                     print(active_identifier)
 
                     job_cards = self.page.locator(f'[{active_identifier}]')
@@ -329,13 +460,36 @@ class Parser:
                     ''')
                     time.sleep(2)
                     job_cards = self.page.locator(f'[{active_identifier}]')
-                    print(f"Page count: {job_cards.count()}")
+                    print(f"Page {page_num} count: {job_cards.count()}")
                     job_id_page_list = list(
                         filter(
                             lambda x: re.match(r'^\d{10}$', x) is not None,
                             [i.get_attribute(active_identifier) for i in job_cards.all()]
                         )
                     )
+                    page_job_count = len(job_id_page_list)
+                    print(f"Page {page_num}: {page_job_count} jobs found")
+
+                    # If 0 jobs but header says there should be some, retry once
+                    if page_job_count == 0 and expected_total and expected_total > 0:
+                        print(
+                            f"⚠ Page {page_num}: 0 jobs found but header expects "
+                            f"{expected_total}. Waiting 5s and retrying..."
+                        )
+                        time.sleep(5)
+                        active_identifier = self._find_active_identifier(
+                            expected_count=expected_total
+                        )
+                        job_cards = self.page.locator(f'[{active_identifier}]')
+                        job_id_page_list = list(
+                            filter(
+                                lambda x: re.match(r'^\d{10}$', x) is not None,
+                                [i.get_attribute(active_identifier) for i in job_cards.all()]
+                            )
+                        )
+                        page_job_count = len(job_id_page_list)
+                        print(f"Page {page_num} retry: {page_job_count} jobs found")
+
                     job_id_list.extend(job_id_page_list)
 
                     try:
@@ -346,11 +500,11 @@ class Parser:
                         reading = False
 
                 except Exception as e:
-                    print(f"Scan error: {e}")
+                    print(f"Scan error on page {page_num}: {e}")
                     reading = False
 
             print(f"FInished Reading : {url}")
-        print("Finished Reading all")
+        print(f"LinkedIn: Found {len(job_id_list)} job URLs")
         return job_id_list
 
     def read_job(self, url):
@@ -358,13 +512,13 @@ class Parser:
         # self.page.context.add_cookies(json.loads(cookies))
         if parsed_url.netloc == 'www.linkedin.com':
             if parsed_url.path == '/jobs/collections/recommended/' or parsed_url.path == '/jobs/search/':
-                self.page.goto(url)
+                self.page.goto(url, wait_until='domcontentloaded', timeout=60000)
                 time.sleep(2)
                 self.check_logged_in(url)
                 return self.read_linkedin_jobs()
             elif match := re.search(r'/jobs/view/(\d+)/', parsed_url.path):
                 page_url = f"https://www.linkedin.com/jobs/view/?currentJobId={match.group(1)}"
-                self.page.goto(page_url)
+                self.page.goto(page_url, wait_until='domcontentloaded')
                 time.sleep(2)
                 self.check_logged_in(url)
                 return self.read_linkedin_jobs()
@@ -462,7 +616,9 @@ class Parser:
     def read_linkedin_jobs(self):
         time.sleep(2)
         try:
-            description = self.page.locator('article.jobs-description__container').inner_text(timeout=10000)
+            # Wait for actual paragraphs to load so we don't just grab "About the job"
+            self.page.wait_for_selector('article.jobs-description__container p', timeout=10000)
+            description = self.page.locator('article.jobs-description__container').inner_text()
         except Exception as e:
             try:
                 description = self.page.locator('h2:has-text("About the job") + div p').first.inner_text(timeout=10)

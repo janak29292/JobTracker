@@ -17,14 +17,47 @@ JOB_STATUS = {
 PLATFORM = {
     'LI': 'linkedIn',
     'NI': 'naukri',
+    "M": 'manual',
     'RAW': 'raw_data'
 }
 
+SENIORITY_LEVEL = {
+    "intern": "intern",
+    "junior": "junior",
+    "mid": "mid",
+    "senior": "senior",
+    "lead": "lead",
+    "manager": "manager",
+    "director": "director",
+    "vp": "vp",
+    "cto": "cto"
+}
+
+ROLE_CATEGORY = {
+    "backend": "backend",
+    "frontend": "frontend",
+    "fullstack": "fullstack",
+    "data_engineer": "data_engineer",
+    "data_science": "data_science",
+    "devops": "devops",
+    "mobile": "mobile",
+    "qa": "qa"
+}
 
 # Create your models here.
 class Job(models.Model):
     platform = models.CharField(max_length=16, choices=PLATFORM)
     company = models.CharField(max_length=64)
+    role_summary = models.TextField()
+    seniority_level = models.CharField(
+        max_length=16, choices=SENIORITY_LEVEL, null=True, blank=True
+    )
+    role_category = models.CharField(
+        max_length=16, choices=ROLE_CATEGORY, null=True, blank=True
+    )
+    role_title = models.CharField(
+        max_length=128, null=True, blank=True
+    )
     recruiter = models.CharField(max_length=64, null=True)
     contact = models.CharField(max_length=16, null=True)
     agency = models.CharField(max_length=64, null=True)
@@ -39,6 +72,8 @@ class Job(models.Model):
     experience_max = models.IntegerField(null=True)
     tech_stack_primary = models.CharField(max_length=256)
     tech_stack_all = models.CharField(max_length=512)
+    tech_stack_primary_new = models.CharField(max_length=256, null=True)
+    tech_stack_all_new = models.CharField(max_length=512, null=True)
     salary = models.CharField(max_length=64, null=True)
     ratings = models.CharField(max_length=64, null=True)
     last_interaction = models.DateField(null=True)

@@ -122,49 +122,64 @@ def _save_raw_data_from_file(buffer_path):
         lines = f.readlines()
 
     print(f"Saving {len(lines)} scraped jobs from buffer...")
-    index = 0
-    while True:
-        try:
-            raw_data = json.loads(lines[index])
-            job_url = JobUrl.objects.get(id=raw_data["job_url_id"])
-            job_url_id = job_url.id
 
-            if "description" not in raw_data:
-                # Expired/skipped job — just mark as scanned
-                print(f"Marking scanned (expired): {job_url_id}")
-                job_url.scanned = True
-                job_url.save()
-                lines.pop(index)
+    # Bulk-fetch all JobUrls upfront
+    parsed_lines = []
+    for line in lines:
+        parsed_lines.append(json.loads(line))
+    url_ids = [entry["job_url_id"] for entry in parsed_lines]
+    job_urls_map = {ju.id: ju for ju in JobUrl.objects.filter(id__in=url_ids)}
+
+    job_raw_list = []
+    scanned_url_ids = []
+    expired_url_ids = []
+    remaining_lines = []
+
+    for i, raw_data in enumerate(parsed_lines):
+        try:
+            job_url = job_urls_map.get(raw_data["job_url_id"])
+            if not job_url:
+                print(f"JobUrl not found: {raw_data['job_url_id']}")
                 continue
 
-            try:
-                print(f"Saving: {job_url_id}: {job_url.url}")
-                JobRaw.objects.create(
-                    platform=raw_data["platform"],
-                    description=raw_data["description"],
-                    company=raw_data["company"],
-                    job_title=raw_data["job_title"],
-                    job_info=raw_data["job_info"],
-                    job_id=raw_data["job_id"],
-                    job_url=raw_data["job_url"],
-                )
-            except IntegrityError:
-                print(
-                    f"Job: {raw_data['job_id']}: "
-                    f"{raw_data['company']}: {raw_data['job_title']} already Exists"
-                )
-            job_url.scanned = True
-            job_url.save()
-            lines.pop(index)
+            if "description" not in raw_data:
+                # Expired/skipped job — collect for bulk update
+                print(f"Marking scanned (expired): {job_url.id}")
+                expired_url_ids.append(job_url.id)
+                continue
 
-        except IndexError:
-            break
+            print(f"Saving: {job_url.id}: {job_url.url}")
+            job_raw_list.append(JobRaw(
+                platform=raw_data["platform"],
+                description=raw_data["description"],
+                company=raw_data["company"],
+                job_title=raw_data["job_title"],
+                job_info=raw_data["job_info"],
+                job_id=raw_data["job_id"],
+                job_url=raw_data["job_url"],
+            ))
+            scanned_url_ids.append(job_url.id)
+
         except Exception as e:
-            print(f"Error saving job: {e}")
-            index += 1
+            print(f"Error processing job: {e}")
+            remaining_lines.append(lines[i])
+
+    # Bulk update expired jobs
+    if expired_url_ids:
+        JobUrl.objects.filter(id__in=expired_url_ids).update(scanned=True)
+
+    try:
+        print(f"Saving {len(job_raw_list)} scraped jobs from buffer...")
+        JobRaw.objects.bulk_create(job_raw_list)
+        # Only mark as scanned AFTER bulk_create succeeds
+        JobUrl.objects.filter(id__in=scanned_url_ids).update(scanned=True)
+    except Exception as e:
+        print(f"Raw Jobs not Saved: {e}")
+        # Keep all lines in buffer for retry since bulk_create failed
+        remaining_lines = list(lines)
 
     with open(buffer_path, 'w') as f:
-        f.writelines(lines)
+        f.writelines(remaining_lines)
 
 
 @shared_task
@@ -173,14 +188,16 @@ def parse_jobs():
     for raw_job in JobRaw.objects.filter(parsed=False):
         try:
             print(f"Parsing: {raw_job.company}: {raw_job.job_title}")
-            raw_text, last_posted = search_dates(
-                re.sub(r'\bfew\b', '3', raw_job.job_info, flags=re.IGNORECASE),
-                settings={
-                    'RELATIVE_BASE': timezone.localtime(raw_job.created_at),
-                    'TIMEZONE': 'Asia/Kolkata',
-                    'RETURN_AS_TIMEZONE_AWARE': True
-                }
-            )[0]
+            try:
+                raw_text, last_posted = parse_date_from_string(
+                    raw_job.job_info.split('·')[1].strip(),
+                    raw_job.created_at
+                )
+            except Exception as e:
+                print(f"Job Info Parse Error: {e}")
+                raw_text, last_posted = parse_date_from_string(
+                    raw_job.job_info, raw_job.created_at
+                )
             job_location = raw_job.job_info.split('·')[0].strip()
             description_data = desc_parser.parse(raw_job.description)
 
@@ -208,3 +225,12 @@ def parse_jobs():
             # breakpoint()
 
 
+def parse_date_from_string(date_string, created_at):
+    return search_dates(
+        re.sub(r'\bfew\b', '3', date_string, flags=re.IGNORECASE),
+        settings={
+            'RELATIVE_BASE': timezone.localtime(created_at),
+            'TIMEZONE': 'Asia/Kolkata',
+            'RETURN_AS_TIMEZONE_AWARE': True
+        }
+    )[0]

@@ -37,11 +37,11 @@ class JobSerializer(serializers.ModelSerializer):
 
         # Check if status is being updated to 'AF' (Applied)
         new_status = validated_data.get('status')
-        if new_status == 'AF' and instance.status != 'AF':
+        if new_status == 'AF' and instance.status != 'AF' and not instance.applied_on:
             validated_data['applied_on'] = timezone.localtime(timezone.now()).date()
 
         # Set first_response_date once, on first meaningful response
-        response_statuses = {'CR', 'IS', 'RP', 'NE', 'RE', 'OR'}
+        response_statuses = {'CR', 'IS', 'RP', 'NE', 'OR'}
         if new_status in response_statuses and not instance.first_response_date:
             validated_data['first_response_date'] = timezone.localtime(timezone.now()).date()
         return super().update(instance, validated_data)

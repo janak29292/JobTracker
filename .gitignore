@@ -179,3 +179,8 @@ Thumbs.db
 
 # Scraper
 scrape_buffer.jsonl
+
+
+# logs
+jd_analysis/
+jd_analysis_naukri/

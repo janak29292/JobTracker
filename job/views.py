@@ -121,7 +121,8 @@ class JobViewSet(ModelViewSet):
         base_jobs = self.queryset.exclude(status='IG')
 
         is_applied = Q(applied_on__isnull=False)
-        is_response = is_applied & ~Q(status__in=['AF', 'NA', 'RE'])
+        is_response = Q(first_response_date__isnull=False)
+        # is_response = is_applied & ~Q(status__in=['AF', 'NA', 'RE'])
         is_offer = Q(status='OR')
 
         metrics = base_jobs.aggregate(
@@ -144,10 +145,7 @@ class JobViewSet(ModelViewSet):
             )
         )
 
-        avg_response = base_jobs.filter(
-            applied_on__isnull=False,
-            first_response_date__isnull=False,
-        ).filter(is_response).aggregate(
+        avg_response = base_jobs.filter(is_response).aggregate(
             avg_duration=Coalesce(
                 Avg(ExpressionWrapper(
                     F('first_response_date') - F('applied_on'),
@@ -160,18 +158,22 @@ class JobViewSet(ModelViewSet):
         return Response({
             "total_applications": metrics['total_applications'],
             "response_rate": metrics['response_rate'],
-            "avg_days_to_response": avg_response['avg_duration'].days,
+            "avg_days_to_response": round(avg_response['avg_duration'].total_seconds() / 86400, 1),
             "interview_conversion_rate": metrics['interview_conversion_rate'],
         })
 
     @action(detail=False, methods=["get"], url_path="channels")
     def channels(self, request):
-        base_jobs = self.queryset.exclude(status='IG').filter(applied_on__isnull=False)
+        base_jobs = self.queryset.exclude(status='IG')
+
+        is_applied = Q(applied_on__isnull=False)
         
-        is_response = ~Q(status__in=['AF', 'NA', 'RE'])
+        # is_response = ~Q(status__in=['AF', 'NA', 'RE'])
         is_interview = Q(status__in=['IS', 'NE', 'OR'])
 
-        channel_stats = base_jobs.annotate(name=F('platform')).values('name').annotate(
+        is_response = Q(first_response_date__isnull=False)
+
+        channel_stats = base_jobs.filter(is_applied).annotate(name=F('platform')).values('name').annotate(
             applications=Count('id'),
             responses=Count('id', filter=is_response),
             interviews=Count('id', filter=is_interview),
@@ -258,9 +260,13 @@ class JobViewSet(ModelViewSet):
         daily_target = 20
         
         if period == 'week':
-            # Current week starting Sunday (isoweekday: Mon=1, Sun=7)
-            days_since_sunday = now.isoweekday() % 7  # Sun=0, Mon=1, ..., Sat=6
-            start_date = now - timedelta(days=days_since_sunday)
+            # # Current week starting Sunday (isoweekday: Mon=1, Sun=7)
+            # days_since_sunday = now.isoweekday() % 7  # Sun=0, Mon=1, ..., Sat=6
+            # start_date = now - timedelta(days=days_since_sunday)
+
+            # Current week starting Monday (isoweekday: Mon=1, Sun=7)
+            days_since_monday = now.isoweekday() - 1  # Mon=0, Tue=1, ..., Sun=6
+            start_date = now - timedelta(days=days_since_monday)
         elif period == 'month':
             start_date = now - relativedelta(months=1)
         else:

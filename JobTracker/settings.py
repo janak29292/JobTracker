@@ -163,3 +163,8 @@ CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
 # CORS_ALLOWED_ORIGINS
 # CORS_ALLOWED_ORIGIN_REGEXES
 CORS_ALLOW_ALL_ORIGINS = True
+
+# Ollama LLM Configuration
+OLLAMA_BASE_URL = 'http://localhost:11434'
+OLLAMA_MODEL = 'mistral'
+
