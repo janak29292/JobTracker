@@ -1,11 +1,24 @@
+import subprocess
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from user.models import Category, Pattern, Problem, Approach, Unstructured
-from user.serializers import CategorySerializer, PatternSerializer, ProblemSerializer, ApproachSerializer, \
-    UnstructuredSerializer
+from django.contrib.contenttypes.models import ContentType
+from rest_framework.views import APIView
+from rest_framework import status
+
+from user.models import (
+    Category, Pattern, Problem, Approach, Unstructured,
+    ApplicantProfile, WorkExperience, Education, Project,
+    Dealbreaker, Question, Answer, BulletPoint
+)
+from user.serializers import (
+    CategorySerializer, PatternSerializer, ProblemSerializer, ApproachSerializer,
+    UnstructuredSerializer, ApplicantProfileSerializer, WorkExperienceSerializer,
+    EducationSerializer, ProjectSerializer, DealbreakerSerializer, QuestionSerializer,
+    AnswerSerializer, BulletPointSerializer
+)
 
 
 class UnstructuredViewSet(ModelViewSet):
@@ -276,7 +289,6 @@ class CodeExecutorViewSet(viewsets.ViewSet):
         """
         ### POST /execute-code/ — Run Python code
         """
-        import subprocess
         code = request.data.get("code", "")
         try:
             result = subprocess.run(
@@ -557,3 +569,84 @@ class AnswerBankViewSet(viewsets.ViewSet):
                 ]
             }
         )
+
+# ---------------------------------------------------------
+# Applicant Automation Views
+# ---------------------------------------------------------
+
+class ApplicantProfileViewSet(ModelViewSet):
+    """
+    Standard ModelViewSet for the applicant profile.
+    Since there is only one user, we return the first profile.
+    """
+    queryset = ApplicantProfile.objects.all()
+    serializer_class = ApplicantProfileSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        # Only return the first profile (singleton behavior)
+        profile = ApplicantProfile.objects.first()
+        if not profile:
+            return ApplicantProfile.objects.none()
+        return ApplicantProfile.objects.filter(id=profile.id)
+
+class ProfileSubItemViewSet(ModelViewSet):
+    """
+    Base viewset for all models that belong to an ApplicantProfile.
+    Forces all queries and creations to tie to the single active profile.
+    """
+    pagination_class = None
+
+    def get_queryset(self):
+        profile = ApplicantProfile.objects.first()
+        if not profile:
+            return self.queryset.none()
+        return self.queryset.filter(profile=profile)
+
+class WorkExperienceViewSet(ProfileSubItemViewSet):
+    queryset = WorkExperience.objects.all()
+    serializer_class = WorkExperienceSerializer
+
+class EducationViewSet(ProfileSubItemViewSet):
+    queryset = Education.objects.all()
+    serializer_class = EducationSerializer
+
+class ProjectViewSet(ProfileSubItemViewSet):
+    queryset = Project.objects.all()
+    serializer_class = ProjectSerializer
+
+class DealbreakerViewSet(ProfileSubItemViewSet):
+    queryset = Dealbreaker.objects.all()
+    serializer_class = DealbreakerSerializer
+
+class QASubItemViewSet(ModelViewSet):
+    """
+    Questions are global to the bank. Answers belong to both a Question and a Profile.
+    """
+    pagination_class = None
+
+class QuestionViewSet(QASubItemViewSet):
+    queryset = Question.objects.all()
+    serializer_class = QuestionSerializer
+
+class ProfileAnswerViewSet(ProfileSubItemViewSet):
+    queryset = Answer.objects.all()
+    serializer_class = AnswerSerializer
+
+class BulletPointViewSet(ModelViewSet):
+    queryset = BulletPoint.objects.all()
+    serializer_class = BulletPointSerializer
+    pagination_class = None
+
+    def perform_create(self, serializer):
+        model_name = self.request.data.get('model_name')
+        object_id = self.request.data.get('object_id')
+        if not model_name or not object_id:
+            raise serializers.ValidationError("model_name and object_id are required")
+        
+        try:
+            content_type = ContentType.objects.get(model=model_name.lower())
+        except ContentType.DoesNotExist:
+            raise serializers.ValidationError(f"Invalid model_name: {model_name}")
+
+        serializer.save(content_type=content_type, object_id=object_id)

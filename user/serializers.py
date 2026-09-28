@@ -1,6 +1,10 @@
 from rest_framework import serializers
 
-from user.models import Problem, Approach, Pattern, Category, Unstructured
+from user.models import (
+    Problem, Approach, Pattern, Category, Unstructured,
+    ApplicantProfile, WorkExperience, Education, Project,
+    Dealbreaker, Question, Answer, BulletPoint
+)
 
 
 class UnstructuredSerializer(serializers.ModelSerializer):
@@ -53,3 +57,57 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = ['id', 'name', 'patterns']
+
+# ---------------------------------------------------------
+# Applicant Automation Serializers
+# ---------------------------------------------------------
+
+class BulletPointSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BulletPoint
+        fields = ['id', 'content']
+
+class WorkExperienceSerializer(serializers.ModelSerializer):
+    bullet_points = BulletPointSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = WorkExperience
+        fields = '__all__'
+
+class EducationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Education
+        fields = '__all__'
+
+class ProjectSerializer(serializers.ModelSerializer):
+    bullet_points = BulletPointSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = Project
+        fields = '__all__'
+
+class ApplicantProfileSerializer(serializers.ModelSerializer):
+    experiences = WorkExperienceSerializer(many=True, read_only=True)
+    education = EducationSerializer(many=True, read_only=True)
+    projects = ProjectSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ApplicantProfile
+        fields = '__all__'
+
+class AnswerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Answer
+        fields = '__all__'
+
+class QuestionSerializer(serializers.ModelSerializer):
+    answers = AnswerSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Question
+        fields = '__all__'
+
+class DealbreakerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Dealbreaker
+        fields = '__all__'

@@ -1,59 +1,17 @@
 import webbrowser
-from celery import chain
-from job.tasks import add_jobs, parse_jobs, save_job_urls
+import sys
+import os
+import django
 
+# Add the parent directory to sys.path so python can find the 'JobTracker' module
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-def run_job_pipeline(sources=None, scan_type=None, sync=False):
-    """
-    Runs the full pipeline to scan URLs, scrape details, and parse jobs.
-    """
-    if sync:
-        for source in sources:
-            save_job_urls(source=source, scan_type=scan_type)
-        add_jobs()
-        parse_jobs()
-    else:
-        scan_chain = [save_job_urls.si(source=source, scan_type=scan_type) for source in sources]
-        pipeline = chain(
-            *scan_chain,
-            add_jobs.si(),
-            parse_jobs.si(),
-        )
-        pipeline.delay()
+# Set the DJANGO_SETTINGS_MODULE to your project's settings
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "JobTracker.settings")
+django.setup()
 
-
-def scan_job_urls(sources=None, scan_type=None, sync=False):
-    for source in sources:
-        if sync:
-            save_job_urls(source=source, scan_type=scan_type)
-        else:
-            scan_chain = [save_job_urls.si(source=source, scan_type=scan_type) for source in sources]
-            pipeline = chain(
-                *scan_chain
-            )
-            pipeline.delay()
-
-
-def add_raw_jobs(sync=False):
-    """
-    Fetches LinkedIn Job urls from database and Scrapes Job data and
-    stores in database as raw data
-    """
-    if sync:
-        add_jobs()
-    else:
-        add_jobs.delay()
-
-
-def parse_raw_jobs(sync=False):
-    """
-    Fetches stored raw data and parses it to convert into usable
-    data
-    """
-    if sync:
-        parse_jobs()
-    else:
-        parse_jobs.delay()
+from job.models import Job
+from services.parser import Parser
 
 
 def open_in_browser(url):
@@ -63,3 +21,24 @@ def open_in_browser(url):
 def get_browser():
     var = webbrowser.get()
     breakpoint()
+
+
+def run(login_url, username, password):
+    cookies = []
+    jobs = [
+        Job.objects.filter(apply_url__icontains='naukri').first().apply_url,
+        Job.objects.filter(apply_url__icontains='linkedin').first().apply_url
+    ]
+    parser = Parser()
+    try:
+        for job in jobs:
+            print(f"{parser.is_expired(job)}: {job}")
+        # cookies = parser.login(login_url, username, password)
+        parser.playwright.stop()
+    except Exception as e:
+        print(e)
+        parser.playwright.stop()
+    return cookies
+
+if __name__ == '__main__':
+    run(None, None, None)

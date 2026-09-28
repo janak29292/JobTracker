@@ -1,7 +1,7 @@
 import django_filters
 from django.db.models import Q
 from django import forms
-from django_filters import rest_framework as filters, BaseInFilter
+from django_filters import rest_framework as filters, BaseInFilter, NumberFilter
 
 from job.models import Job, TechStack, Posting
 
@@ -43,7 +43,12 @@ class JSONListFilter(django_filters.Filter):
         return filtered_qs
 
 
+class NumberInFilter(BaseInFilter, NumberFilter):
+    pass
+
+
 class JobFilter(filters.FilterSet):
+    id__in = NumberInFilter(field_name='id', lookup_expr='in')
     status__not__in = BaseInFilter(
         field_name="status",
         lookup_expr="in",
@@ -67,6 +72,7 @@ class JobFilter(filters.FilterSet):
             'status': ['in'],
             'experience_min': ['gte'],
             'experience_max': ['lte'],
+            'platform': ['exact'],
         }
 
 

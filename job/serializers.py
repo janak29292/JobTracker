@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.utils import timezone
 
-from job.models import JobUrl, JobRaw, Job, TechStack, Posting
+from job.models import JobUrl, JobRaw, Job, TechStack, Posting, JobMatch, JobMatchCluster, ApplicationRun, StepRecord
 
 
 class UrlSerializer(serializers.ModelSerializer):
@@ -20,6 +20,9 @@ class RawJobSerializer(serializers.ModelSerializer):
 
 
 class JobSerializer(serializers.ModelSerializer):
+    latest_match_score = serializers.IntegerField(read_only=True)
+    latest_decision = serializers.CharField(read_only=True)
+
     class Meta:
         model = Job
         fields = '__all__'
@@ -48,6 +51,8 @@ class JobSerializer(serializers.ModelSerializer):
 
 
 class TechStackSerializer(serializers.ModelSerializer):
+    has_context = serializers.BooleanField(read_only=True, default=False)
+
     class Meta:
         model = TechStack
         fields = '__all__'
@@ -57,3 +62,44 @@ class PostingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Posting
         fields = '__all__'
+
+
+class JobMatchClusterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = JobMatchCluster
+        fields = '__all__'
+
+
+class JobMatchSerializer(serializers.ModelSerializer):
+    core_foundation = JobMatchClusterSerializer(read_only=True)
+    secondary_clusters = JobMatchClusterSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = JobMatch
+        fields = '__all__'
+
+
+class StepRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StepRecord
+        fields = ['id', 'step_number', 'page_url', 'screenshot', 'dom_signature',
+                  'source', 'action_type', 'action_detail', 'success', 'error_message',
+                  'created_at']
+        read_only_fields = fields
+
+
+class ApplicationRunSerializer(serializers.ModelSerializer):
+    steps = StepRecordSerializer(many=True, read_only=True)
+    job_company = serializers.CharField(source='job.company', read_only=True)
+    job_position = serializers.CharField(source='job.position', read_only=True)
+
+    class Meta:
+        model = ApplicationRun
+        fields = ['id', 'job', 'job_company', 'job_position', 'status', 'apply_type',
+                  'checkpoint_id', 'had_fresh_decisions', 'auto_submit_eligible',
+                  'skip_reason', 'escalation_reason', 'error_log',
+                  'started_at', 'completed_at', 'created_at', 'steps']
+        read_only_fields = ['id', 'job', 'job_company', 'job_position', 'apply_type',
+                           'checkpoint_id', 'had_fresh_decisions', 'auto_submit_eligible',
+                           'skip_reason', 'escalation_reason', 'error_log',
+                           'started_at', 'completed_at', 'created_at', 'steps']

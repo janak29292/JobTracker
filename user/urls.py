@@ -15,6 +15,15 @@ from .views import (
     # Answer Bank
     AnswerBankViewSet,
     UnstructuredViewSet,
+    # Applicant Automation
+    ApplicantProfileViewSet,
+    WorkExperienceViewSet,
+    EducationViewSet,
+    ProjectViewSet,
+    DealbreakerViewSet,
+    QuestionViewSet,
+    ProfileAnswerViewSet,
+    BulletPointViewSet,
 )
 
 router = DefaultRouter()
@@ -38,6 +47,16 @@ router.register(r"interview-prep/generate-checklist", InterviewChecklistViewSet,
 
 # 💬 Answer Bank
 router.register(r"answer-bank", AnswerBankViewSet, basename="answer-bank")
+
+# 🎓 Applicant Automation
+router.register(r"profile", ApplicantProfileViewSet, basename="profile")
+router.register(r"experiences", WorkExperienceViewSet, basename="work-experiences")
+router.register(r"educations", EducationViewSet, basename="educations")
+router.register(r"projects", ProjectViewSet, basename="projects")
+router.register(r"dealbreakers", DealbreakerViewSet, basename="dealbreakers")
+router.register(r"questions", QuestionViewSet, basename="questions")
+router.register(r"answers", ProfileAnswerViewSet, basename="answers")
+router.register(r"bullets", BulletPointViewSet, basename="bullets")
 
 urlpatterns = [
     # path("", include(router.urls)),

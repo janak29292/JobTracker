@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand, CommandError
 
-from scripts.tracker import parse_raw_jobs
+from job.tasks import parse_jobs
 
 
 class Command(BaseCommand):
@@ -15,7 +15,18 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        parse_raw_jobs(sync=options["sync"])
+        self.dispatch(sync=options["sync"])
+        sync_str = "Synchronous" if options["sync"] else "Asynchronous"
         self.stdout.write(
-            self.style.SUCCESS('Parser Job added to Worker')
+            self.style.SUCCESS(f'{sync_str} Parser Job Dispatched')
         )
+
+    def dispatch(self, sync=False):
+        """
+        Fetches stored raw data and parses it to convert into usable
+        data
+        """
+        if sync:
+            parse_jobs()
+        else:
+            parse_jobs.delay()

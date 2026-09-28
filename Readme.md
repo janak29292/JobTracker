@@ -2,9 +2,16 @@
 
 A Django-based application for tracking jobs and related data structures & algorithms (DSA) preparation.
 
-## Prerequisites
+## System Requirements & Prerequisites
+
+**Hardware Requirements**
+- **RAM:** Minimum 16GB (32GB recommended when running local LLMs and concurrent browser scraping tasks).
+- **Storage:** ~10GB free space (needed for Python packages, Playwright binaries, and Ollama model weights).
+- **GPU (Recommended):** A dedicated GPU (e.g., Nvidia RTX) is highly recommended for running Ollama (Gemma 4). Running the LLM solely on CPU will be extremely slow.
+
+**Software Prerequisites**
 - Python 3.12 or higher (recommended)
-- Redis Server (for Celery tasks)
+- Redis Server (required for Celery task queuing)
 
 ## Setup Instructions
 
@@ -30,9 +37,24 @@ source venv/bin/activate
 ```
 
 ### 3. Install Dependencies
+
+**Python Packages**  
 Install all the required Python packages from `requirements.txt`:
 ```bash
 pip install -r requirements.txt
+```
+
+**Playwright Browsers**  
+This project uses Playwright for scraping. You need to install the browser binaries:
+```bash
+playwright install
+```
+
+**Ollama (for AI Features)**  
+To use the AI-powered extraction and job matching features, you need to install [Ollama](https://ollama.com/) locally and pull the required model (currently configured to use `gemma4`):
+```bash
+# After installing Ollama from their website, run:
+ollama pull gemma4
 ```
 
 ### 4. Setting up Environment Variables in `.bashrc` (Optional but Recommended)
@@ -125,18 +147,51 @@ python manage.py parse_jobs --sync
 ```
 
 **4. Full Pipeline (`job_pipeline`)**  
-Runs the full pipeline (scan → scrape → parse) for a specific source and type. The `-s` flag is optional — if not provided, the pipeline skips the scan step and only runs scrape and parse on existing un-processed data. Supports running for multiple sources at once.
+Runs the full pipeline (scan → scrape → parse) for a specific source and type. Can optionally run the AI extraction and auto-curation stages. The `-s` flag is optional — if not provided, the pipeline skips the scan step and only runs scrape and parse on existing un-processed data.
+
+Available flags:
+- `--sync`: Run synchronously instead of dispatching to Celery.
+- `--ai`: Include the AI extraction and auto-curation tasks (requires GPU/Ollama).
+- `--purge`: Purge the Celery queue of any unacknowledged tasks before starting.
+- `--shutdown`: Shut down the computer after the pipeline finishes.
+
 ```bash
-# Single source
+# Standard pipeline (scan -> scrape -> parse)
 python manage.py job_pipeline -s linkedin -t recommended
 python manage.py job_pipeline -s naukri
 
-# Multiple sources
-python manage.py job_pipeline -s linkedin naukri -t filtered
+# Run with AI extraction and curation
+python manage.py job_pipeline -s naukri --ai
+
+# Purge queue before running, then shutdown when finished
+python manage.py job_pipeline -s linkedin naukri -t filtered --ai --purge --shutdown
 
 # Scrape + parse only (no scan)
 python manage.py job_pipeline
 
 # Run synchronously
 python manage.py job_pipeline -s naukri --sync
+```
+
+**5. Extract JD Fields (`extract_jd_fields`)**  
+Extracts structured fields from job descriptions (like role summary, seniority level, required skills) using the local Ollama LLM and stores them in a buffer for review before applying to the database.
+```bash
+# Extract in batches (writes to buffer)
+python manage.py extract_jd_fields --batch-size 50 --resume
+
+# Run synchronously
+python manage.py extract_jd_fields --batch-size 50 --resume --sync
+```
+
+**6. Match Jobs (`match_jobs`)**  
+Runs the Ollama-based AI job matching pipeline to qualify jobs against your applicant profile and dealbreakers. This scores and filters jobs based on how well they fit your preferences.
+```bash
+# Evaluate a batch of jobs
+python manage.py match_jobs --batch-size 10
+
+# Test specific jobs
+python manage.py match_jobs --job-ids 1,2,3
+
+# Run synchronously
+python manage.py match_jobs --batch-size 10 --sync
 ```

@@ -1,6 +1,7 @@
+from celery import chain
 from django.core.management.base import BaseCommand, CommandError
 
-from scripts.tracker import add_raw_jobs
+from job.tasks import add_jobs
 
 
 class Command(BaseCommand):
@@ -15,7 +16,25 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        add_raw_jobs(sync=options["sync"])
+        self.dispatch(sync=options["sync"])
+
+        sync_str = "Synchronous" if options["sync"] else "Asynchronous"
         self.stdout.write(
-            self.style.SUCCESS('Scraper Job added to Worker')
+            self.style.SUCCESS(f'{sync_str} Scraper Job Dispatched')
         )
+
+    def dispatch(self, sync=False):
+        """
+        Fetches LinkedIn Job urls from database and Scrapes Job data and
+        stores in database as raw data
+        """
+        if sync:
+            add_jobs()
+            add_jobs()
+        else:
+            pipeline = chain(
+                add_jobs.si(),
+                add_jobs.si(),
+            )
+            pipeline.delay()
+
