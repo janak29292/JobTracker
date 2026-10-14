@@ -1,4 +1,6 @@
 import json
+import os
+import base64
 import logging
 import re
 import subprocess
@@ -17,6 +19,9 @@ from user.models import ApplicantProfile
 
 logger = logging.getLogger(__name__)
 
+# Enable debug logging so we can see exactly what Instructor rejects on the first try
+logging.getLogger("instructor").setLevel(logging.DEBUG)
+
 class OllamaUnavailableError(Exception):
     """Raised when the Ollama service is unreachable or errors out repeatedly."""
     pass
@@ -25,19 +30,33 @@ class OllamaClient:
     GPU_TEMP_THRESHOLD = 85  # °C — pause if above this
 
     def __init__(self):
-        self.base_url = getattr(settings, 'OLLAMA_BASE_URL', 'http://localhost:11434')
+        self.base_url = getattr(settings, 'OLLAMA_BASE_URL', 'http://localhost:11434').rstrip('/')
         self.model = getattr(settings, 'OLLAMA_MODEL', 'mistral:7b')
         self.timeout = 300  # seconds — Gemma4 needs more time for complex JDs
         self.last_raw_response = None  # stored for debugging failed parses
         self.last_raw_payload = None
-        # We use the OpenAI Python client because Ollama natively supports the OpenAI API spec.
-        # This points STRICTLY to your local machine (http://localhost:11434).
-        # Absolutely NO data leaves your machine, and you are not paying for any API.
+
+        # Only attach Ngrok and Basic Auth headers if targeting a remote URL
+        is_local = any(host in self.base_url for host in ("localhost", "127.0.0.1", "0.0.0.0"))
+
+        self.headers = {}
+        if not is_local:
+            self.headers["ngrok-skip-browser-warning"] = "true"
+            username = getattr(settings, 'OLLAMA_AUTH_USER', os.environ.get('NGROK_USER', None))
+            password = getattr(settings, 'OLLAMA_AUTH_PASSWORD', os.environ.get('NGROK_PASSWORD', None))
+            if username and password:
+                auth_string = f"{username}:{password}"
+                b64_auth = base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')
+                self.headers["Authorization"] = f"Basic {b64_auth}"
+
+        client = OpenAI(
+            base_url=f"{self.base_url}/v1",
+            api_key="ollama",
+            timeout=600.0,  # Forces Python to wait up to 10 minutes
+            default_headers=self.headers
+        )
         self.instructor_client = instructor.from_openai(
-            OpenAI(
-                base_url=f"{self.base_url}/v1",
-                api_key="ollama", # Required by the library, but completely ignored by local Ollama
-            ),
+            client,
             mode=instructor.Mode.JSON,
         )
         self.batch_start = time.time()
@@ -120,6 +139,7 @@ class OllamaClient:
                 response = requests.post(
                     f"{self.base_url}/api/generate",
                     json=payload,
+                    headers=self.headers,
                     timeout=self.timeout
                 )
                 response.raise_for_status()
@@ -179,46 +199,62 @@ class OllamaClient:
         method: "instructor" (uses OpenAI /v1/chat/completions with Instructor)
                 "raw_generate" (uses /api/generate with native format: json and schema injection)
         """
-        self._thermal_check()
-        
-        if method == "instructor":
-            result, raw_response = self.instructor_client.chat.completions.create_with_completion(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                response_model=response_model,
-                temperature=0,
-            )
-            return result, raw_response
-            
-        elif method == "raw_generate":
-            schema_str = json.dumps(response_model.model_json_schema(), indent=2)
-            augmented_prompt = f"{prompt}\n\nIMPORTANT: You must output ONLY valid JSON that exactly matches this JSON schema:\n{schema_str}"
-            
-            payload = {
-                "model": self.model,
-                "prompt": augmented_prompt,
-                "stream": False,
-                "format": "json",
-                "options": {"temperature": 0}
-            }
-            
-            response = requests.post(f"{self.base_url}/api/generate", json=payload, timeout=self.timeout)
-            response.raise_for_status()
-            
-            data = response.json()
-            raw_response_str = data.get("response", "")
+        while True:
+            self._thermal_check()
             
             try:
-                result = response_model.model_validate_json(raw_response_str)
-            except ValidationError:
-                # The LLM sometimes outputs the literal string "null" instead of the primitive null
-                # when instructed to "output null" outside of Instructor's guardrails.
-                cleaned_str = re.sub(r'":\s*"null"', '": null', raw_response_str)
-                result = response_model.model_validate_json(cleaned_str)
-            return result, raw_response_str
-            
-        else:
-            raise ValueError(f"Unknown method {method}")
+                if method == "instructor":
+                    result, raw_response = self.instructor_client.chat.completions.create_with_completion(
+                        model=self.model,
+                        messages=[{"role": "user", "content": prompt}],
+                        response_model=response_model,
+                        temperature=0,
+                    )
+                    return result, raw_response
+                    
+                elif method == "raw_generate":
+                    schema_str = json.dumps(response_model.model_json_schema(), indent=2)
+                    augmented_prompt = f"{prompt}\n\nIMPORTANT: You must output ONLY valid JSON that exactly matches this JSON schema:\n{schema_str}"
+                    
+                    payload = {
+                        "model": self.model,
+                        "prompt": augmented_prompt,
+                        "stream": False,
+                        "format": "json",
+                        "options": {"temperature": 0}
+                    }
+                    
+                    response = requests.post(
+                        f"{self.base_url}/api/generate",
+                        json=payload,
+                        headers=self.headers,
+                        timeout=self.timeout
+                    )
+                    response.raise_for_status()
+                    
+                    data = response.json()
+                    raw_response_str = data.get("response", "")
+                    
+                    try:
+                        result = response_model.model_validate_json(raw_response_str)
+                    except ValidationError:
+                        # The LLM sometimes outputs the literal string "null" instead of the primitive null
+                        # when instructed to "output null" outside of Instructor's guardrails.
+                        cleaned_str = re.sub(r'":\s*"null"', '": null', raw_response_str)
+                        result = response_model.model_validate_json(cleaned_str)
+                    return result, raw_response_str
+                    
+                else:
+                    raise ValueError(f"Unknown method {method}")
+
+            except KeyboardInterrupt:
+                logger.info("Interrupted by user during LLM API call.")
+                raise
+            except ValueError:
+                raise
+            except Exception as e:
+                logger.error(f"Error communicating with LLM API: {e}. Execution paused. Retrying in 60 seconds...")
+                time.sleep(60)
 
     def extract_tech_stack(self, description: str) -> Dict[str, List[str]]:
         """
@@ -563,16 +599,16 @@ class TechCluster(BaseModel):
         "'Frontend', 'Data & ML', 'Observability & Monitoring', 'Code Quality & Tooling'"
     )
     job_requires: List[str] = Field(
-        default_factory=list,
-        description="The specific technologies the job requires in this cluster"
+        min_length=1,
+        description="The specific technologies the job requires in this cluster. This list MUST NOT be empty."
     )
     candidate_has: List[str] = Field(
         default_factory=list,
         description="Technologies the candidate has that are relevant to this cluster, "
         "including equivalent/comparable tools even if not an exact name match"
     )
-    importance: str = Field(
-        description="How important this cluster is to the job. One of: "
+    importance: Literal["CRITICAL", "IMPORTANT", "NICE_TO_HAVE"] = Field(
+        description="How important this cluster is to the job. "
         "CRITICAL - the job cannot be done without these skills "
         "(e.g. primary language, core framework). "
         "IMPORTANT - significant requirements but a strong candidate could ramp up "
@@ -580,7 +616,7 @@ class TechCluster(BaseModel):
         "NICE_TO_HAVE - preferred/bonus skills, not blocking "
         "(e.g. code quality tools, specific IDE, CI/CD preferences)"
     )
-    coverage: str = Field(
+    coverage: Literal["EXACT_MATCH", "COVERED", "BUILDABLE", "PARTIAL", "GAP", "WRONG_STACK"] = Field(
         description="How well the candidate covers this cluster. One of: "
         "EXACT_MATCH - candidate has the exact skills listed "
         "(e.g. job requires Python/Django and candidate knows Python/Django). "
@@ -603,10 +639,12 @@ class JobMatchResult(BaseModel):
     """Structured job match evaluation using technology clusters."""
     
     core_foundation: TechCluster = Field(
-        description="The absolute, non-transferable core technical foundation of the role "
-        "(e.g., Primary Programming Language(s) for a developer, Core Medical Licenses for a nurse). "
+        description="The absolute, non-transferable core foundation of the role. "
+        "EVERY job has a core foundation (e.g., Primary Language for Devs, CRM tools for Operations, "
+        "Specific Domain knowledge for Advisory). "
         "If the job strictly requires multiple core technologies, group them all here. "
-        "This represents the critical technical prerequisite(s) for the job."
+        "You MUST extract the most critical cluster here."
+        "This represents the critical prerequisite(s) for the job."
     )
     
     secondary_clusters: List[TechCluster] = Field(
@@ -632,7 +670,10 @@ class JobMatchResult(BaseModel):
     job_level: Optional[Literal["UNKNOWN", "INTERN", "JUNIOR", "MID", "SENIOR", "LEAD", "MANAGER", "DIRECTOR", "VP", "CXO"]] = Field(
         default=None,
         description="The hierarchical seniority level required by the job, based on the job title. "
-        "Only use years of experience to deduce the level if the title is completely ambiguous. "
+        "If the base job title does not clarify the job title, look for the salary to determine the level."
+        "If the salary isn't available either then try to gather roles and responsibility by reading"
+        " the job description to understand the level. "
+        "Only use years of experience to deduce the level if the everything else is completely ambiguous. "
         "Output UNKNOWN only if the job description provides zero clues about seniority."
     )
     
@@ -726,22 +767,29 @@ class JobMatchResult(BaseModel):
         if job.experience_min:
             context += f"EXPERIENCE REQUIRED: {job.experience_min} to {job.experience_max or '?'} years\n"
         context += "\n"
-        
-        context += "--- AI ENRICHED DATA ---\n"
-        context += f"ROLE TITLE: {job.role_title}\n"
-        if job.role_category:
-            context += f"ROLE CATEGORY: {job.role_category}\n"
-        context += f"SENIORITY: {job.seniority_level}\n"
-        context += f"REQUIRED SKILLS: {job.tech_stack_primary_new}\n"
-        context += f"PREFERRED SKILLS: {job.tech_stack_all_new}\n\n"
-        
+
+        # context += "--- AI ENRICHED DATA ---\n"
+        # context += f"ROLE TITLE: {job.role_title}\n"
+        # if job.role_category:
+        #     context += f"ROLE CATEGORY: {job.role_category}\n"
+        # context += f"SENIORITY: {job.seniority_level}\n"
+        # context += f"REQUIRED SKILLS: {job.tech_stack_primary_new}\n"
+        # context += f"PREFERRED SKILLS: {job.tech_stack_all_new}\n\n"
+
         context += "--- FULL JOB DESCRIPTION ---\n"
         context += f"{job.job_description}\n"
         return context
 
     @staticmethod
     def calculate_score(result: 'JobMatchResult') -> tuple[int, str]:
-        """Calculate final score and decision from LLM output using Harmonic Gate architecture."""
+        """
+        Calculate final score and decision from LLM output using Harmonic Gate architecture.
+        
+        TODO (Feature Upgrade): Move the logistical multipliers (Role, Seniority, Salary) and 
+        their weights to the ApplicantProfile so they can be dynamically controlled via a 
+        UI "Strictness" slider (using Celery background tasks or in-query Django SQL annotation 
+        recalculation to maintain server-side sorting).
+        """
         
         # ── 1. Base Tech Score (0-100) ──
         COVERAGE_SCORES = {
@@ -775,11 +823,11 @@ class JobMatchResult(BaseModel):
         role_mult = ROLE_MULTIPLIERS.get(result.role_relevance) if result.role_relevance else None
         
         SALARY_MULTIPLIERS = {
-            "EXCEEDS": 1.10,
-            "BELOW_EXPECTED": 1.0,
-            "MEETS": 1.0,
-            "MODERATE_CUT": 0.60,
-            "SEVERE_CUT": 0.05
+            "EXCEEDS": 2.00,
+            "BELOW_EXPECTED": 1.5,
+            "MEETS": 1.5,
+            "MODERATE_CUT": 1.00,
+            "SEVERE_CUT": 0.2
         }
         salary_mult = SALARY_MULTIPLIERS.get(result.salary_alignment) if result.salary_alignment else None
         
@@ -810,11 +858,17 @@ class JobMatchResult(BaseModel):
             sen_mult = None # fallback to neutral ignore
 
         # ── 3. Harmonic Gate (Weighted) ──
-        # Weights: Role=10, Seniority=8, Salary=2
+        # Default missing ones to 1.0 to preserve the mathematical weight distribution
+        if role_mult is None: role_mult = 1.0
+        if sen_mult is None: sen_mult = 1.0
+        if salary_mult is None: salary_mult = 1.0
+
+        # Weights: Base=5, Role=10, Seniority=5, Salary=3
         components = [
+            (1, 5),
             (role_mult, 10.0),
-            (sen_mult, 8.0),
-            (salary_mult, 2.0)
+            (sen_mult, 5.0),
+            (salary_mult, 3.0)
         ]
         
         valid_components = [(m, w) for m, w in components if m is not None]
@@ -891,6 +945,28 @@ JOB POSTING:
         # print("="*60)
         # print(raw_response.model_dump_json(indent=2))
         # print("="*60 + "\n")
+        
+        # Log schema and raw response to file for debugging later
+        # try:
+        #     log_dir = os.path.join(settings.BASE_DIR, 'logs') if hasattr(settings, 'BASE_DIR') else 'logs'
+        #     os.makedirs(log_dir, exist_ok=True)
+        #     log_path = os.path.join(log_dir, 'ollama_raw_responses.log')
+        #
+        #     with open(log_path, "a", encoding="utf-8") as log_file:
+        #         log_file.write(f"\n{'='*60}\n")
+        #         log_file.write(f"INSTRUCTOR JSON SCHEMA (INJECTED INTO REQUEST) - {datetime.now().isoformat()}:\n")
+        #         log_file.write(f"{'='*60}\n")
+        #         log_file.write(json.dumps(cls.model_json_schema(), indent=2))
+        #         log_file.write(f"\n\n{'='*60}\n")
+        #         log_file.write(f"RAW RESPONSE FROM OLLAMA (BEFORE PARSING):\n")
+        #         log_file.write(f"{'='*60}\n")
+        #         if hasattr(raw_response, 'model_dump_json'):
+        #             log_file.write(raw_response.model_dump_json(indent=2))
+        #         else:
+        #             log_file.write(str(raw_response))
+        #         log_file.write(f"\n{'='*60}\n")
+        # except Exception as e:
+        #     logger.error(f"Failed to log schema and raw response: {e}")
 
         # Compute deterministic score
         score, decision = cls.calculate_score(llm_result)

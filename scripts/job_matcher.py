@@ -18,11 +18,17 @@ BUFFER_DIR.mkdir(exist_ok=True)
 
 EXPIRY_BUFFER_FILE = BUFFER_DIR / 'expiry_buffer.jsonl'
 
-def run(batch_size=None, job_ids=None, resume=True):
-    extract(batch_size, job_ids, resume)
+# def run(
+#         batch_size=None, job_ids=None, resume=True,
+#         expiry_only=False, match_buffer_only=False
+# ):
+#     extract(batch_size, job_ids, resume)
 
-def extract(batch_size=None, job_ids=None, resume=True):
-    
+def run(
+        batch_size=None, job_ids=None, resume=True,
+        expiry_only=False, match_buffer_only=False,
+        skip_expiry_check=False
+):
     profile = ApplicantProfile.objects.first()
     if not profile:
         print("No ApplicantProfile found. Please create one in the admin panel first.")
@@ -40,13 +46,31 @@ def extract(batch_size=None, job_ids=None, resume=True):
     if resume:
         # Exclude using a subquery instead of pulling all IDs into Python memory
         jobs = jobs.exclude(id__in=JobMatch.objects.values('job_id'))
+
+    if match_buffer_only:
+        joblist = list()
+        with open(EXPIRY_BUFFER_FILE, 'r') as f:
+            for line in f:
+                joblist.append(json.loads(line).get('job_id'))
+        jobs = jobs.filter(id__in=joblist)
+
     if batch_size:
         jobs = jobs[:batch_size]
 
-
-    jobs_list = list(check_expiration(jobs))
+    if skip_expiry_check:
+        jobs_list = list(jobs)
+    else:
+        jobs_list = list(check_expiration(jobs))
     total_jobs = len(jobs_list)
 
+    if not expiry_only:
+        run_job_match(jobs_list, total_jobs, profile)
+
+    # Clear the expiry buffer now that the batch is completely finished matching
+    # if skip_expiry_check:
+    #     open(EXPIRY_BUFFER_FILE, 'w').close()
+
+def run_job_match(jobs_list, total_jobs, profile):
     print(f"Starting Job Qualification Pipeline for {total_jobs} jobs...")
 
     client = OllamaClient()
@@ -66,14 +90,17 @@ def extract(batch_size=None, job_ids=None, resume=True):
             print(f"  -> Reasoning: {llm_result.reasoning}")
             print(f"  -> Core Foundation:")
             core = llm_result.core_foundation
-            print(f"     [CRITICAL] {core.area}: {core.coverage} | Job needs: {core.job_requires} | Candidate has: {core.candidate_has}")
+            print(
+                f"     [CRITICAL] {core.area}: {core.coverage} | Job needs: {core.job_requires} | Candidate has: {core.candidate_has}")
 
             print(f"  -> Secondary Clusters:")
             for c in llm_result.secondary_clusters:
-                print(f"     [{c.importance}] {c.area}: {c.coverage} | Job needs: {c.job_requires} | Candidate has: {c.candidate_has}")
+                print(
+                    f"     [{c.importance}] {c.area}: {c.coverage} | Job needs: {c.job_requires} | Candidate has: {c.candidate_has}")
 
             print(f"  -> Logistical Alignment:")
-            print(f"     Role: {llm_result.role_relevance} | Candidate: {llm_result.candidate_level} | Job: {llm_result.job_level} | Salary: {llm_result.salary_alignment}")
+            print(
+                f"     Role: {llm_result.role_relevance} | Candidate: {llm_result.candidate_level} | Job: {llm_result.job_level} | Salary: {llm_result.salary_alignment}")
 
             save_job_match(job, score, decision, llm_result, contexts)
 
@@ -81,17 +108,14 @@ def extract(batch_size=None, job_ids=None, resume=True):
                 job.status = 'MA'
                 job.save()
 
-            
             client.processed += 1
-            
+
         except Exception as e:
             client.failed += 1
             print(f"  -> Error communicating with Ollama: {e}")
-            
+
         client.progress_log(i, total_jobs, f"Job #{job.id} ({job.company})")
-    
-    # Clear the expiry buffer now that the batch is completely finished matching
-    open(EXPIRY_BUFFER_FILE, 'w').close()
+
 
     client.final_log(f"\nDone. Processed: {client.processed} | Failed: {client.failed}")
 
@@ -123,13 +147,13 @@ def check_expiration(jobs):
             for i, job in enumerate(joblist, 1):
                 if job.id in checked_job_ids:
                     continue
-                    
+
                 if 'linkedin.com' not in job.apply_url and 'naukri.com' not in job.apply_url:
                     continue
 
                 print(f"  [{i}/{jobs.count()}] Job ID: #{job.id} | Checking URL: {job.apply_url}")
                 try:
-                    time.sleep(random.uniform(1.5, 3.5))
+                    time.sleep(random.uniform(1.5, 6.5))
                     is_exp = parser.is_expired(job.apply_url)
                     entry = {'job_id': job.id, 'is_expired': is_exp}
                     if is_exp:
@@ -142,7 +166,6 @@ def check_expiration(jobs):
                     skipped_job_ids.add(job.id)
                     parser.playwright.stop()
                     parser = Parser()
-                    
         finally:
             try:
                 parser.playwright.stop()
@@ -150,8 +173,7 @@ def check_expiration(jobs):
                 pass
         if expired_job_ids:
             batch_update_job_status(list(expired_job_ids), status='AC')
-            
+
         exclude_ids = expired_job_ids.union(skipped_job_ids)
         return Job.objects.filter(id__in=job_id_list).exclude(id__in=exclude_ids)
     return jobs
-

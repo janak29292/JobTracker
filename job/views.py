@@ -207,64 +207,41 @@ class JobViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="tech-demand")
     def tech_demand(self, request):
-        
         limit = int(request.GET.get('limit', 20))
         base_jobs = self.get_queryset().exclude(status='IG')
         
-        # Calculate denominator for percentages
-        total_jobs_with_tech = base_jobs.exclude(tech_stack_all__isnull=True).exclude(tech_stack_all__exact='').count()
+        job_techs = base_jobs.exclude(
+            tech_stack_all_new__isnull=True
+        ).exclude(
+            tech_stack_all_new__exact=''
+        ).values_list('tech_stack_all_new', flat=True)
 
-        # Fetch all target techs to check
-        all_techs = TechStack.objects.values_list('name', flat=True)
-
-        aggregation_kwargs = {}
-        alias_to_name_map = {}
-
-        # Build dynamic pivot columns for single database pass calculation
-        for i, tech_name in enumerate(all_techs):
-            safe_alias = f"t_{i}"
-            alias_to_name_map[safe_alias] = tech_name
-            aggregation_kwargs[safe_alias] = Count(
-                Case(
-                    When(tech_stack_all__icontains=f'"{tech_name}"', then=1),
-                    output_field=IntegerField()
-                )
-            )
-
-        # Single-pass execution on Database (takes ~0.5s instead of 190s)
-        tech_counts_raw = base_jobs.aggregate(**aggregation_kwargs)
-
-        whens = []
-        for safe_alias, count in tech_counts_raw.items():
-            if count and count > 0:
-                tech_name = alias_to_name_map[safe_alias]
-                whens.append(When(name=tech_name, then=Value(count)))
+        total_jobs_with_tech = job_techs.count()
+        all_techs = set(TechStack.objects.values_list('name', flat=True))
         
-        if whens:
+        tech_counts = Counter()
+        
+        for tech_string in job_techs:
+            try:
+                tech_list = json.loads(tech_string)
+                for t in tech_list:
+                    t_lower = t.lower()
+                    if t_lower in all_techs:
+                        tech_counts[t_lower] += 1
+            except (json.JSONDecodeError, TypeError):
+                continue
+                
+        top_techs_list = tech_counts.most_common(limit)
+        
+        response_data = []
+        for tech_name, count in top_techs_list:
+            response_data.append({
+                "name": tech_name,
+                "count": count,
+                "percentage": round((count * 100.0) / total_jobs_with_tech, 1) if total_jobs_with_tech > 0 else 0.0
+            })
             
-            top_techs = TechStack.objects.annotate(
-                count=Case(*whens, default=Value(0), output_field=IntegerField())
-            ).filter(count__gt=0).annotate(
-                percentage=Round(
-                    Cast(F('count') * 100, FloatField()) / Value(total_jobs_with_tech if total_jobs_with_tech > 0 else 1, output_field=FloatField()), 
-                    1
-                )
-            ).order_by('-count')[:limit]
-        else:
-            top_techs = TechStack.objects.none()
-
-        # # Format the response
-        # response_data = []
-        # for tech in top_techs:
-        #     response_data.append({
-        #         "name": tech.name,
-        #         "count": tech.count,
-        #         "percentage": round(tech.percentage, 1) if tech.percentage else 0.0
-        #     })
-            
-        return Response(
-            {"tech_demand": top_techs.values('name', 'count', 'percentage')}
-        )
+        return Response({"tech_demand": response_data})
 
     @action(detail=False, methods=["get"], url_path="velocity")
     def velocity(self, request):

@@ -113,9 +113,12 @@ def batch_update_job_status(jobs_to_update, status=None):
                 last_interaction=today
             )
             jobs = Job.objects.filter(id__in=jobs_to_update)
-            StatusEvent.objects.bulk_create([
-                StatusEvent(job=job, status=status) for job in jobs
-            ])
+            try:
+                StatusEvent.objects.bulk_create([
+                    StatusEvent(job=job, status=status) for job in jobs
+                ], batch_size=100)
+            except Exception as e:
+                print(f"Warning: Failed to create StatusEvents due to DB error: {e}")
 
 
 @transaction.atomic

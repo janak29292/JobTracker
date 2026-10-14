@@ -226,14 +226,14 @@ class Parser(LinkedInMixin, NaukriMixin):
                 match = re.search(r'currentJobId=(\d+)', url)
                 if match:
                     clean_url = f"https://www.linkedin.com/jobs/view/{match.group(1)}/"
-            self.page.goto(clean_url, wait_until='domcontentloaded')
+            self._safe_goto(clean_url, wait_until='domcontentloaded')
             self.page.wait_for_timeout(2000)  # Let Playwright event loop process JS redirect to /authwall
             self.check_logged_in(clean_url)
             # breakpoint()
             return self.is_expired_linkedin()
 
         elif parsed_url.netloc == 'www.naukri.com':
-            self.page.goto(url, wait_until='domcontentloaded')
+            self._safe_goto(url, wait_until='domcontentloaded')
             # breakpoint()
             # time.sleep(1)  # short wait is enough for banner
             return self.is_expired_naukri()

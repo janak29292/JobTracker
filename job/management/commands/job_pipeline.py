@@ -79,9 +79,9 @@ class Command(BaseCommand):
             if run_ai:
                 extract_jd_fields(batch_size=None)
                 auto_curate_buffer(batch_size=None, add_to_jobs=True)
-                # qualify_jobs(batch_size=None)
+                qualify_jobs(batch_size=None, resume=True, skip_expiry_check=True)
                 # auto_apply_batch(batch_size=None)
-            
+
             if shutdown:
                 shutdown_pc()
         else:
@@ -96,7 +96,7 @@ class Command(BaseCommand):
                 tasks.extend([
                     extract_jd_fields.si(batch_size=None, resume=True),
                     auto_curate_buffer.si(batch_size=None, add_to_jobs=True),
-                    # qualify_jobs.si(batch_size=None),
+                    qualify_jobs.si(batch_size=None, resume=True, skip_expiry_check=True),
                     # auto_apply_batch.si(batch_size=None),
                 ])
             

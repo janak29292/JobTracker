@@ -1,8 +1,9 @@
 import os
+import subprocess
 from celery import shared_task
 
 from scripts import scanner, scraper, raw_parser, tracker, jd_extractor, tech_curator, job_matcher
-from scripts.auto_apply import run_batch, resume_run
+from scripts.apply_runner import run_batch, resume_run
 
 
 @shared_task
@@ -36,8 +37,15 @@ def auto_curate_buffer(batch_size=None, add_to_jobs=False, dry_run=False):
 
 
 @shared_task
-def qualify_jobs(batch_size=None, job_ids=None, resume=True):
-    job_matcher.run(batch_size=batch_size, job_ids=job_ids, resume=resume)
+def qualify_jobs(
+        batch_size=None, job_ids=None, resume=True, expiry_only=False, match_buffer_only=False,
+        skip_expiry_check=False
+):
+    job_matcher.run(
+        batch_size=batch_size, job_ids=job_ids, resume=resume,
+        expiry_only=expiry_only, match_buffer_only=match_buffer_only,
+        skip_expiry_check=skip_expiry_check
+    )
 
 
 @shared_task
@@ -55,5 +63,14 @@ def resume_application(run_id: int):
 @shared_task
 def shutdown_pc():
     print("Shutdown flag detected. Shutting down the computer in 60 seconds...")
-    os.system("shutdown.exe /s /t 60")
+    # OLD COMMAND: 
+    # os.system("shutdown.exe /s /t 60")
+    
+    # This uses PowerShell to create a native Windows popup with Yes/No buttons
+    ps_command = (
+        "$wshell = New-Object -ComObject Wscript.Shell; "
+        "$res = $wshell.Popup('Pipeline finished! Shut down the computer? (Auto-shutdown in 60s)', 60, 'JobTracker Auto Apply', 4); "
+        "if ($res -ne 7) { shutdown.exe /s /t 0 }"
+    )
+    subprocess.run(["powershell.exe", "-Command", ps_command])
 

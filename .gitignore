@@ -61,6 +61,7 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 db2.sqlite3
+apply_checkpoints.db
 
 # Flask stuff:
 instance/
@@ -184,3 +185,14 @@ scrape_buffer.jsonl
 # logs
 jd_analysis/
 jd_analysis_naukri/
+logs/
+media/
+resumes/
+buffer/
+
+
+*.old
+*.json
+*.jsonl
+*.csv
+*.logs
