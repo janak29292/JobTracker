@@ -1,3 +1,4 @@
+```python
 import subprocess
 import time
 import os
@@ -52,8 +53,9 @@ subprocess.run(["ollama", "pull", MODEL_NAME])
 
 
 print("\n4. Setting up Ngrok (10-Minute Timeout)...")
-from pyngrok import ngrok
-
+from pyngrok import ngrok, conf
+# Force v2 tunnel schema so basic_auth and host_header are accepted
+conf.get_default().config_version = "2"
 # Authenticate and open the tunnel
 ngrok.set_auth_token(NGROK_TOKEN)
 # public_url = ngrok.connect(11434).public_url
@@ -69,3 +71,4 @@ print("\n" + "="*50)
 print(f"SUCCESS! Update Django settings.py with:")
 print(f"OLLAMA_BASE_URL = '{public_url}'")
 print("="*50)
+```

@@ -3,6 +3,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
+from rest_framework.exceptions import ValidationError
 
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.views import APIView
@@ -603,6 +604,12 @@ class ProfileSubItemViewSet(ModelViewSet):
             return self.queryset.none()
         return self.queryset.filter(profile=profile)
 
+    def perform_create(self, serializer):
+        profile = ApplicantProfile.objects.first()
+        if profile is None:
+            raise ValidationError("No ApplicantProfile exists yet — create one before adding sub-items.")
+        serializer.save(profile=profile)
+
 class WorkExperienceViewSet(ProfileSubItemViewSet):
     queryset = WorkExperience.objects.all()
     serializer_class = WorkExperienceSerializer
@@ -642,11 +649,11 @@ class BulletPointViewSet(ModelViewSet):
         model_name = self.request.data.get('model_name')
         object_id = self.request.data.get('object_id')
         if not model_name or not object_id:
-            raise serializers.ValidationError("model_name and object_id are required")
+            raise ValidationError("model_name and object_id are required")
         
         try:
             content_type = ContentType.objects.get(model=model_name.lower())
         except ContentType.DoesNotExist:
-            raise serializers.ValidationError(f"Invalid model_name: {model_name}")
+            raise ValidationError(f"Invalid model_name: {model_name}")
 
         serializer.save(content_type=content_type, object_id=object_id)

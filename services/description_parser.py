@@ -5,6 +5,7 @@ Download model: python -m spacy download en_core_web_sm
 """
 
 import re
+import json
 import spacy
 from typing import Dict, List, Optional
 from collections import Counter
@@ -423,7 +424,5 @@ if __name__ == "__main__":
     """
 
     result = parser.parse(job_desc)
-
-    import json
 
     print(json.dumps(result, indent=2))

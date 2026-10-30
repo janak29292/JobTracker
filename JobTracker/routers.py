@@ -8,6 +8,8 @@ class ModuleRouter:
     # SHARED_APPS = {'auth', 'contenttypes', 'my_main_app'}
 
     def db_for_read(self, model, **hints):
+        if getattr(model._meta, 'db_table', '') == 'checkpoints':
+            return 'checkpoints'
         if model._meta.app_label in self.JOB_APPS:
             return 'job'
         # For shared tables, you must choose a "primary" for reads
@@ -15,11 +17,15 @@ class ModuleRouter:
         return 'default'
 
     def db_for_write(self, model, **hints):
+        if getattr(model._meta, 'db_table', '') == 'checkpoints':
+            return 'checkpoints'
         if model._meta.app_label in self.JOB_APPS:
             return 'job'
         return 'default'
 
     def allow_migrate(self, db, app_label, model_name=None, **hints):
+        if model_name in ('checkpointrecord', 'checkpoints'):
+            return False
         if app_label in self.JOB_APPS:
             return db == 'job'
         # if app_label in self.SHARED_APPS:

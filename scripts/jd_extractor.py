@@ -60,10 +60,10 @@ def extract(batch_size=None, platform=None, dry_run=False, resume=False, job_ids
                     'saved': False,
                     **result,
                 }
-                client.progress_log(i, len(jobs), f"Job #{job.id} ({job.company})")
+                # client.progress_log(i, len(jobs), f"Job #{job.id} ({job.company})")
 
                 update_fields, new_unknowns = _validate_entry(
-                    client, entry, f"{i}/{len(jobs)}", known_techs_set, known_techs_list
+                    client, entry, i, known_techs_set, known_techs_list, len(jobs)
                 )
                 entry = {**entry, **update_fields}
                 new_unknowns_count += len(new_unknowns)
@@ -91,7 +91,7 @@ def extract(batch_size=None, platform=None, dry_run=False, resume=False, job_ids
                 print(f"Error on job #{job.id}: {e}")
                 client.failed += 1
 
-            # client.progress_log(i, len(jobs), f"Job #{job.id} ({job.company})")
+            client.progress_log(i, len(jobs), f"Job #{job.id} ({job.company}) Extraction Complete")
 
     except KeyboardInterrupt:
         print("Interrupted")
@@ -122,17 +122,30 @@ def _final_log(batch_start, extracted, gpu_temps, failed, new_unknowns_count):
     )
 
 
-def _validate_entry(client, entry, progress, known_techs_set, known_techs_list):
+def _validate_entry(client, entry, i, known_techs_set, known_techs_list, total_jobs):
     job_id = entry['job_id']
-    print_progress(f"  [{progress}] Job #{job_id} - Validating")
+    # print_progress(f"  [{progress}] Job #{job_id} - Validating")
 
     # Validate seniority/category against model choices
     seniority = entry.get('seniority_level') if entry.get('seniority_level') in SENIORITY_LEVEL else None
     role_cat = entry.get('role_category') if entry.get('role_category') in ROLE_CATEGORY else None
 
+    # Defensive: ensure skills are always list[str], never 'unknown' / str / None
+    def to_skill_list(val):
+        if isinstance(val, list):
+            return [str(x).strip() for x in val if x and str(x).strip().lower() not in ('unknown', 'none', 'n/a', 'null')]
+        if isinstance(val, str) and val.strip() and val.strip().lower() not in ('unknown', 'none', 'n/a', 'null'):
+            return [s.strip() for s in val.split(',') if s.strip()]
+        return []
+
+    req_skills = to_skill_list(entry.get('required_skills'))
+    pref_skills = to_skill_list(entry.get('preferred_skills'))
+    entry['required_skills'] = req_skills
+    entry['preferred_skills'] = pref_skills
+
     # Ollama-based tech normalization
     all_extracted = []
-    for t in entry.get('required_skills', []) + entry.get('preferred_skills', []):
+    for t in req_skills + pref_skills:
         t_clean = t.lower().strip()
         if t_clean:
             all_extracted.append(t_clean)
@@ -145,6 +158,7 @@ def _validate_entry(client, entry, progress, known_techs_set, known_techs_list):
     normalization_overrides = []
 
     if needs_normalization:
+        client.progress_log(i, total_jobs, f"JD Extracted. Now Normalizing for Job #{job_id}", is_substep=True)
         # Pre-filter: narrow known techs to ~25 candidates per unknown tech
         all_candidates = set()
         for tech in needs_normalization:
@@ -152,7 +166,7 @@ def _validate_entry(client, entry, progress, known_techs_set, known_techs_list):
             # matches = process.extract(tech, known_techs_list, scorer=fuzz.token_set_ratio, limit=25)
             all_candidates.update(match[0] for match in matches)
         candidates_list = sorted(all_candidates)
-        print(candidates_list)
+        # print(candidates_list)
         try:
             normalized_map, normalization_overrides = client.normalize_tech_stack(needs_normalization, candidates_list)
         except Exception as e:

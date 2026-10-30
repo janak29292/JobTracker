@@ -1,4 +1,5 @@
 import os
+from urllib.parse import quote
 
 LINKEDIN_USERNAME = os.getenv("LINKEDIN_USERNAME")
 LINKEDIN_PASSWORD = os.getenv("LINKEDIN_PASSWORD")
@@ -13,6 +14,19 @@ LINKEDIN_FILTERED = (
     "https://www.linkedin.com/jobs/search/?"
     "&f_T=39%2C25169%2C25194"
     "&f_WT=1%2C3"
+    "&f_TPR=r86400"
+)
+
+# Use exact quotes ("") and uppercase Boolean operators (AND, OR, NOT)
+SEARCH_QUERY = (
+    '("Senior Software Engineer" OR "Software Engineer" OR "Backend Engineer") '
+    'AND (Python OR Django) '
+    'NOT (Java OR .NET OR C++ OR Frontend OR Angular OR QA)'
+)
+
+LINKEDIN_FILTERED_2 = (
+    "https://www.linkedin.com/jobs/search-results/?"
+    f"keywords={quote(SEARCH_QUERY)}"
     "&f_TPR=r86400"
 )
 

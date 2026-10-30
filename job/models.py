@@ -1,3 +1,5 @@
+import json
+import msgpack
 from django.db import models
 from django.utils import timezone
 
@@ -282,8 +284,10 @@ APPLICATION_STATUS = {
     'IN_PROGRESS': 'In Progress',
     'PENDING_REVIEW': 'Pending Review',
     'REVIEW_APPROVED': 'Review Approved',
+    'INTERRUPTED': 'Interrupted',
     'SUBMITTED': 'Submitted',
     'SUBMIT_FAILED': 'Submit Failed',
+    'FAILED': 'Failed',
     'ESCALATED': 'Escalated',
     'SKIPPED': 'Skipped',
     'CANCELLED': 'Cancelled',
@@ -306,10 +310,28 @@ class PlatformAccount(models.Model):
         return f"{self.platform} ({'healthy' if self.is_healthy else 'UNHEALTHY'})"
 
 
+class PortalCredential(models.Model):
+    """Stores candidate credentials for enterprise company ATS portals."""
+    domain = models.CharField(max_length=128, db_index=True)  # e.g. 'jobs.birlasoft.com'
+    email = models.EmailField()
+    password = models.CharField(max_length=128)
+    last_used = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('domain', 'email')
+
+    def __str__(self):
+        return f"{self.domain} ({self.email})"
+
+
 class ApplicationRun(models.Model):
     """One application attempt for one job."""
     job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='application_runs')
     status = models.CharField(max_length=24, choices=APPLICATION_STATUS, default='QUEUED')
+
+    # The destination URL after redirects (for cross-platform duplicate detection)
+    final_url = models.CharField(max_length=512, null=True, blank=True, db_index=True)
 
     # Classification of the apply link (filled after first navigation)
     apply_type = models.CharField(max_length=24, null=True, blank=True)
@@ -346,11 +368,14 @@ class StepRecord(models.Model):
     screenshot = models.ImageField(upload_to='apply_screenshots/', null=True, blank=True)
     dom_signature = models.CharField(max_length=128)  # hash of the form state
 
+    # The planned checklist item that produced this step (for audit trail)
+    checklist_item = models.JSONField(null=True, blank=True)
+
     # Decision
     source = models.CharField(max_length=16)  # 'cache_hit', 'llm_decision', 'profile_lookup'
     action_type = models.CharField(max_length=24)
-    # One of: 'fill_field', 'click', 'select_dropdown', 'upload_file', 'navigate',
-    #         'drag', 'submit', 'wait', 'escalate', 'skip'
+    # One of: 'fill', 'click', 'select', 'upload', 'check', 'uncheck',
+    #         'navigate', 'submit', 'escalate', 'skip'
     action_detail = models.JSONField()  # {"selector": "...", "value": "...", "field_label": "..."}
 
     # Result
@@ -391,6 +416,7 @@ class ActionSnippet(models.Model):
     
     # Context
     platform = models.CharField(max_length=32, blank=True)  # 'workday', 'greenhouse', etc.
+    page_type = models.CharField(max_length=32, blank=True)  # 'application_form', 'job_listing', etc.
     field_label = models.CharField(max_length=128, blank=True)  # human-readable: "First Name"
     page_url_pattern = models.CharField(max_length=256, blank=True)  # URL with IDs stripped
     
@@ -445,4 +471,60 @@ class ActionSnippet(models.Model):
             f"[{self.snippet_type}] {self.platform}:{self.field_label} "
             f"— {self.success_count}/{self.total_uses} success"
         )
+
+
+class CheckpointManager(models.Manager):
+    """Auto-routes all queries on this model to the 'checkpoints' database."""
+    def get_queryset(self):
+        return super().get_queryset().using('checkpoints')
+
+
+class CheckpointRecord(models.Model):
+    """
+    Unmanaged model to inspect LangGraph checkpoints directly in Django shell.
+    Points to apply_checkpoints.db.
+    """
+    thread_id = models.CharField(max_length=128, db_index=True)
+    checkpoint_ns = models.CharField(max_length=128, blank=True)
+    checkpoint_id = models.CharField(max_length=128, primary_key=True)
+    parent_checkpoint_id = models.CharField(max_length=128, null=True, blank=True)
+    type = models.CharField(max_length=64)
+    checkpoint = models.BinaryField()
+    metadata = models.BinaryField()
+
+    objects = CheckpointManager()
+
+    class Meta:
+        managed = False
+        db_table = 'checkpoints'
+
+    @property
+    def decoded_state(self) -> dict:
+        """Unpack msgpack binary payload into a clean Python dictionary."""
+        if not self.checkpoint:
+            return {}
+        try:
+            raw = bytes(self.checkpoint) if isinstance(self.checkpoint, memoryview) else self.checkpoint
+            data = msgpack.unpackb(raw, raw=False)
+            return data.get('channel_values', {}) if isinstance(data, dict) else data
+        except Exception:
+            try:
+                return json.loads(self.checkpoint)
+            except Exception:
+                return {}
+
+    @property
+    def decoded_metadata(self) -> dict:
+        """Unpack metadata payload."""
+        if not self.metadata:
+            return {}
+        try:
+            raw = bytes(self.metadata) if isinstance(self.metadata, memoryview) else self.metadata
+            return msgpack.unpackb(raw, raw=False)
+        except Exception:
+            return {}
+
+    def __str__(self):
+        st = self.decoded_state
+        return f"Checkpoint [{self.thread_id}] Step {st.get('step_number', '?')} ({st.get('status', 'UNKNOWN')})"
 

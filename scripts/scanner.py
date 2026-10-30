@@ -9,12 +9,13 @@ def run(source=None, scan_type=None):
     parser.playwright.stop()
 
     if source == 'linkedin':
-        if scan_type == 'filtered':
-            urls = [f"https://www.linkedin.com/jobs/search/?currentJobId={i}" for i in job_id_list]
-        elif scan_type == 'recommended':
-            urls = [f"https://www.linkedin.com/jobs/collections/recommended/?currentJobId={i}" for i in job_id_list]
-        else:
-            urls = []
+        # if scan_type == 'filtered':
+        #     urls = [f"https://www.linkedin.com/jobs/search/?currentJobId={i}" for i in job_id_list]
+        # elif scan_type == 'recommended':
+        #     urls = [f"https://www.linkedin.com/jobs/collections/recommended/?currentJobId={i}" for i in job_id_list]
+        # else:
+        #     urls = []
+        urls = [f"https://www.linkedin.com/jobs/view/{i}/" for i in job_id_list]
     elif source == 'naukri':
         urls = list(job_id_list)
     else:

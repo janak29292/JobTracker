@@ -48,8 +48,17 @@ def run():
                 # Naukri: job ID is the last numeric segment in the path
                 job_id = re.search(r'-(\d{10,})/?$', parsed.path).group(1)
             else:
-                # LinkedIn: job ID is in the currentJobId query param
-                job_id = parse_qs(parsed.query)['currentJobId'][0]
+                # LinkedIn: job ID can be in /jobs/view/{id}/ path or currentJobId query param
+                if match := re.search(r'/jobs/view/(\d+)', page_url):
+                    job_id = match.group(1)
+                elif 'currentJobId' in parse_qs(parsed.query):
+                    job_id = parse_qs(parsed.query)['currentJobId'][0]
+                elif match := re.search(r'/jobs/view/(\d+)', url):
+                    job_id = match.group(1)
+                elif match := re.search(r'currentJobId=(\d+)', url):
+                    job_id = match.group(1)
+                else:
+                    raise ValueError(f"Could not extract LinkedIn job ID from URL: {page_url}")
 
             raw_data = {
                 "platform": platform,
@@ -71,6 +80,8 @@ def run():
             parser.playwright.stop()
             parser = Parser()
     parser.playwright.stop()
+
+    # breakpoint()
 
     save_from_buffer(buffer_path)
 

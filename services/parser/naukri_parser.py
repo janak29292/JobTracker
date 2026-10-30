@@ -76,6 +76,7 @@ class NaukriMixin:
 
     def scan_urls_naukri(self):
         url = NAUKRI_FILTERED_2
+        print(f"Reading: {url}")
         self._safe_goto(url)
         time.sleep(2)
         self.check_logged_in(url)

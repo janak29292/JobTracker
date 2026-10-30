@@ -1,3 +1,4 @@
+```python
 import subprocess
 import time
 import os
@@ -52,8 +53,9 @@ subprocess.run(["ollama", "pull", MODEL_NAME])
 
 
 print("\n4. Setting up Ngrok (10-Minute Timeout)...")
-from pyngrok import ngrok
-
+from pyngrok import ngrok, conf
+# Force v2 tunnel schema so basic_auth and host_header are accepted
+conf.get_default().config_version = "2"
 # Authenticate and open the tunnel
 ngrok.set_auth_token(NGROK_TOKEN)
 # public_url = ngrok.connect(11434).public_url
@@ -69,3 +71,21 @@ print("\n" + "="*50)
 print(f"SUCCESS! Update Django settings.py with:")
 print(f"OLLAMA_BASE_URL = '{public_url}'")
 print("="*50)
+```
+
+```python
+print(f"\n4. Pre-warming {MODEL_NAME} into GPU VRAM (This takes ~60-90 seconds)...")
+print("   - By loading locally, we completely bypass the Cloudflare 100s timeout trap.")
+try:
+    req = urllib.request.Request(
+        "http://localhost:11434/api/generate",
+        data=json.dumps({"model": MODEL_NAME, "prompt": "Reply 'ready'", "stream": False}).encode("utf-8"),
+        headers={"Content-Type": "application/json"}
+    )
+    start_time = time.time()
+    with urllib.request.urlopen(req) as response:
+        result = json.loads(response.read().decode())
+    print(f"   -> Model loaded and replied in {round(time.time() - start_time, 1)} seconds!")
+except Exception as e:
+    print(f"   -> Error pre-warming model: {e}")
+```

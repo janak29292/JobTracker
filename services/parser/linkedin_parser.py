@@ -157,6 +157,7 @@ class LinkedInMixin:
 
         job_id_list = []
         for url in urls:
+            print(f"Reading: {url}")
             self._safe_goto(url, wait_until='domcontentloaded')
             time.sleep(2)
             self.check_logged_in(url)

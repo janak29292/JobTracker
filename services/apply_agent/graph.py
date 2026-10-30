@@ -1,34 +1,33 @@
 """
-LangGraph StateGraph definition for the auto-apply agent.
+LangGraph StateGraph definition for the auto-apply agent (v2).
 
-This wires the node functions from nodes.py into the state machine
-defined in the plan. The graph runs inside a single Celery task.
+Architecture: Observe → Reason → Plan → Execute
 
-Checkpoint persistence uses SQLite (via langgraph-checkpoint-sqlite)
-to support pause/resume — e.g. when an application is parked for
-human review and later approved.
+The graph runs inside a single Celery task. Checkpoint persistence
+uses SQLite (via langgraph-checkpoint-sqlite) to support pause/resume
+when an application is parked for human review.
 """
 import os
+import sqlite3
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from django.conf import settings
-
 from services.apply_agent.state import ApplyState
 from services.apply_agent.nodes import (
     pre_check,
     classify_link,
     observe,
-    check_cache,
-    replay,
-    llm_decide,
+    reason,
+    captcha_bypass,
+    plan,
+    execute,
     trust_check,
     submit,
 )
 
 
 # ── Checkpoint storage ──────────────────────────────────────────────
-# Store LangGraph checkpoints in the project's base directory
 CHECKPOINT_DB_PATH = os.path.join(
     getattr(settings, 'BASE_DIR', '.'),
     'apply_checkpoints.db'
@@ -37,7 +36,10 @@ CHECKPOINT_DB_PATH = os.path.join(
 
 def get_checkpointer():
     """Get the SQLite checkpointer for LangGraph state persistence."""
-    return SqliteSaver.from_conn_string(CHECKPOINT_DB_PATH)
+    conn = sqlite3.connect(CHECKPOINT_DB_PATH, check_same_thread=False)
+    saver = SqliteSaver(conn)
+    saver.setup()  # Ensure checkpoint tables are created
+    return saver
 
 
 # ── Router functions ────────────────────────────────────────────────
@@ -49,16 +51,82 @@ def route_pre_check(state: ApplyState) -> str:
     return 'classify_link'
 
 
-def route_cache(state: ApplyState) -> str:
-    """Route after cache check: replay if hit, LLM if miss."""
-    if state.get('_cache_hit'):
-        return 'replay'
-    return 'llm_decide'
+def route_reason(state: ApplyState) -> str:
+    """After reasoning about the page, decide what to do."""
+    # Safety valves
+    if state.get('step_number', 0) > 50:
+        return 'trust_check'
+    if state.get('total_actions_executed', 0) > 100:
+        return 'trust_check'
+
+    if state.get('status') in ('ESCALATED', 'SKIPPED'):
+        return END
+
+    if state.get('status') == 'PENDING_REVIEW':
+        return 'trust_check'
+
+    page_type = state.get('page_type', 'unknown')
+
+    # Confirmation → record success
+    if page_type == 'CONFIRMATION':
+        return 'submit'
+
+    # CAPTCHA challenge → attempt bypass
+    if page_type == 'CAPTCHA':
+        return 'captcha_bypass'
+
+    # All other actionable pages → build a plan
+    return 'plan'
 
 
-def route_verify(state: ApplyState) -> str:
-    """Route after replay: if verification passed continue, else fall through to LLM."""
-    # TODO: implement verification logic — for now always continue to observe
+def route_plan(state: ApplyState) -> str:
+    """After planning, check if roadmap stalled or is ready to execute."""
+    if state.get('status') == 'PENDING_REVIEW':
+        return 'trust_check'
+    if state.get('status') in ('ESCALATED', 'SKIPPED'):
+        return END
+
+    page_tasks = state.get('page_tasks', [])
+    checklist = state.get('checklist', [])
+    if not page_tasks and not checklist:
+        return 'observe'
+
+    return 'execute'
+
+
+def route_execute(state: ApplyState) -> str:
+    """After executing one action, decide what to do next."""
+    if state.get('status') in ('ESCALATED', 'SKIPPED'):
+        return END
+
+    if state.get('status') == 'PENDING_REVIEW':
+        return 'trust_check'
+
+    # Failed action → retry or escalate
+    if not state.get('last_action_success', True):
+        if state.get('consecutive_action_failures', 0) >= 3:
+            return 'trust_check'  # park for human review
+        return 'observe'  # re-observe, re-plan, retry differently
+
+    # Page changed → re-observe (URL change, navigation, modal opened)
+    if state.get('page_changed_after_action'):
+        return 'observe'
+
+    # Hierarchical page_tasks:
+    page_tasks = state.get('page_tasks', [])
+    task_idx = state.get('current_task_index', 0)
+    if page_tasks:
+        if task_idx < len(page_tasks) or not state.get('page_audited', False):
+            return 'execute'
+        return 'observe'
+
+    # More items in legacy checklist → keep executing
+    checklist = state.get('checklist', [])
+    index = state.get('checklist_index', 0)
+    if index < len(checklist):
+        return 'execute'
+
+    # Checklist complete, page didn't change → re-observe to see result
     return 'observe'
 
 
@@ -69,85 +137,53 @@ def route_trust(state: ApplyState) -> str:
     return 'submit'
 
 
-def route_submit(state: ApplyState) -> str:
-    """After submit, always end."""
-    return END
-
-
-def is_at_submit(state: ApplyState) -> str:
-    """
-    After observe: detect if we're at a submit page, an empty page,
-    or if there are more fields to process.
-    
-    Routes to:
-    - 'trust_check': submit page detected (no more fields, or _has_submit flag)
-    - 'check_cache': more fields to process
-    """
-    # Safety valve: don't loop forever
-    if state.get('step_number', 0) > 20:
-        return 'trust_check'
-
-    # Escalation from a previous node
-    if state.get('status') in ('ESCALATED', 'SKIPPED'):
-        return END
-
-    # If the LLM already told us there's a submit button, trust that
-    if state.get('_has_submit'):
-        return 'trust_check'
-
-    # No fields means we're on a confirmation/thank-you page or a page
-    # without a form — either way, we're done filling
-    if not state.get('field_labels'):
-        return 'trust_check'
-
-    # More fields to process
-    return 'check_cache'
-
-
-def route_llm(state: ApplyState) -> str:
-    """Route after llm_decide: if escalated, end; otherwise re-observe."""
-    if state.get('status') in ('ESCALATED', 'SKIPPED'):
-        return END
-    return 'observe'
-
-
 # ── Graph definition ────────────────────────────────────────────────
 
 def build_apply_graph() -> StateGraph:
     """
-    Build and compile the auto-apply LangGraph.
-    
+    Build the auto-apply LangGraph (v2).
+
     State Machine:
-        pre_check → classify_link → observe ↔ (check_cache → replay/llm_decide) → trust_check → submit
-    
-    Note: 'act' is no longer a separate node — actual browser actions
-    happen inside replay() and llm_decide() for tight coupling with
-    verification. The loop is:
-    
-        observe → check_cache → replay (cache hit) or llm_decide (cache miss) → observe → ...
+        pre_check → classify_link → observe → reason ──→ plan ──→ execute ──→ ...
+                                         ↑       │          │          |
+                                         │       ├→ captcha ┘          │
+                                         │       │                     │
+                                         └───────┴─────────────────────┘
     """
     graph = StateGraph(ApplyState)
 
-    # Add nodes
+    # ── Nodes ──
     graph.add_node('pre_check', pre_check)
     graph.add_node('classify_link', classify_link)
     graph.add_node('observe', observe)
-    graph.add_node('check_cache', check_cache)
-    graph.add_node('replay', replay)
-    graph.add_node('llm_decide', llm_decide)
+    graph.add_node('reason', reason)
+    graph.add_node('captcha_bypass', captcha_bypass)
+    graph.add_node('plan', plan)
+    graph.add_node('execute', execute)
     graph.add_node('trust_check', trust_check)
     graph.add_node('submit', submit)
 
-    # Entry point
+    # ── Entry ──
     graph.set_entry_point('pre_check')
 
-    # Edges
+    # ── Edges ──
     graph.add_conditional_edges('pre_check', route_pre_check)
     graph.add_edge('classify_link', 'observe')
-    graph.add_conditional_edges('observe', is_at_submit)
-    graph.add_conditional_edges('check_cache', route_cache)
-    graph.add_edge('replay', 'observe')  # after replay, re-observe the page
-    graph.add_conditional_edges('llm_decide', route_llm)  # can escalate or re-observe
+
+    # Core loop: observe → reason → route
+    graph.add_edge('observe', 'reason')
+    graph.add_conditional_edges('reason', route_reason)
+
+    # CAPTCHA bypass loops back to observe
+    graph.add_edge('captcha_bypass', 'observe')
+
+    # Plan → route (to execute or trust_check if roadblock)
+    graph.add_conditional_edges('plan', route_plan)
+
+    # Execute → route (to execute, observe, or trust_check)
+    graph.add_conditional_edges('execute', route_execute)
+
+    # Terminal
     graph.add_conditional_edges('trust_check', route_trust)
     graph.add_edge('submit', END)
 
@@ -159,4 +195,3 @@ def get_compiled_graph():
     graph = build_apply_graph()
     checkpointer = get_checkpointer()
     return graph.compile(checkpointer=checkpointer)
-

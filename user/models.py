@@ -148,3 +148,20 @@ class Dealbreaker(models.Model):
     profile = models.ForeignKey(ApplicantProfile, on_delete=models.CASCADE, related_name='dealbreakers')
     phrase = models.CharField(max_length=255, help_text="e.g. 'Security Clearance', 'US Citizen Only'")
     is_active = models.BooleanField(default=True)
+
+
+class EncounteredQuestion(models.Model):
+    """Tracks optional screening questions encountered across applications."""
+    user = models.ForeignKey(ApplicantProfile, on_delete=models.CASCADE, related_name='encountered_questions')
+    question_text = models.CharField(max_length=512, db_index=True)
+    encounter_count = models.PositiveIntegerField(default=1)
+    is_optional = models.BooleanField(default=True)
+    last_job = models.ForeignKey('job.Job', on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'question_text')
+
+    def __str__(self):
+        return f"'{self.question_text[:50]}' seen {self.encounter_count}x"

@@ -15,11 +15,11 @@ from services.parser.parser_constants import (
     NAUKRI_USERNAME,
     NAUKRI_PASSWORD,
 )
-from services.parser.linkedin_parser import LinkedInMixin
+from services.parser.linkedin_parser_v2 import LinkedInMixinV2
 from services.parser.naukri_parser import NaukriMixin
 
 
-class Parser(LinkedInMixin, NaukriMixin):
+class Parser(LinkedInMixinV2, NaukriMixin):
 
     def __init__(self):
         self.cookies = list(Session.objects.values().filter(id=1))
@@ -197,17 +197,29 @@ class Parser(LinkedInMixin, NaukriMixin):
         parsed_url = urlparse(url)
         # self.page.context.add_cookies(json.loads(cookies))
         if parsed_url.netloc == 'www.linkedin.com':
-            if parsed_url.path == '/jobs/collections/recommended/' or parsed_url.path == '/jobs/search/':
-                self.page.goto(url, wait_until='domcontentloaded', timeout=60000)
-                self.page.wait_for_timeout(2000)
-                self.check_logged_in(url)
-                return self.read_linkedin_jobs()
-            elif match := re.search(r'/jobs/view/(\d+)/', parsed_url.path):
-                page_url = f"https://www.linkedin.com/jobs/view/?currentJobId={match.group(1)}"
-                self.page.goto(page_url, wait_until='domcontentloaded')
-                self.page.wait_for_timeout(2000)
-                self.check_logged_in(url)
-                return self.read_linkedin_jobs()
+            # if parsed_url.path == '/jobs/collections/recommended/' or parsed_url.path == '/jobs/search/':
+            #     self.page.goto(url, wait_until='domcontentloaded', timeout=60000)
+            #     self.page.wait_for_timeout(2000)
+            #     self.check_logged_in(url)
+            #     return self.read_linkedin_jobs()
+            # elif match := re.search(r'/jobs/view/(\d+)/', parsed_url.path):
+            #     page_url = f"https://www.linkedin.com/jobs/view/?currentJobId={match.group(1)}"
+            #     self.page.goto(page_url, wait_until='domcontentloaded')
+            #     self.page.wait_for_timeout(2000)
+            #     self.check_logged_in(url)
+            #     return self.read_linkedin_jobs()
+
+            target_url = url
+            if 'currentJobId=' in url:
+                if match := re.search(r'currentJobId=(\d+)', url):
+                    target_url = f"https://www.linkedin.com/jobs/view/{match.group(1)}/"
+            elif match := re.search(r'/jobs/view/(\d+)', parsed_url.path):
+                target_url = f"https://www.linkedin.com/jobs/view/{match.group(1)}/"
+
+            self._safe_goto(target_url, wait_until='domcontentloaded')
+            self.page.wait_for_timeout(2000)
+            self.check_logged_in(target_url)
+            return self.read_linkedin_jobs()
         if parsed_url.netloc == 'www.naukri.com':
             self.page.goto(url, wait_until='domcontentloaded')
             # We don't check login on every single job read for speed,

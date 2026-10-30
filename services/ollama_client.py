@@ -5,6 +5,8 @@ import logging
 import re
 import subprocess
 import time
+import statistics
+from collections import deque
 from datetime import timedelta, datetime
 
 import requests
@@ -29,12 +31,20 @@ class OllamaUnavailableError(Exception):
 class OllamaClient:
     GPU_TEMP_THRESHOLD = 85  # °C — pause if above this
 
-    def __init__(self):
+    def __init__(self, model: Optional[str] = None, use_reasoning: bool = False):
         self.base_url = getattr(settings, 'OLLAMA_BASE_URL', 'http://localhost:11434').rstrip('/')
-        self.model = getattr(settings, 'OLLAMA_MODEL', 'mistral:7b')
+        if model:
+            self.model = model
+        elif use_reasoning:
+            self.model = getattr(settings, 'OLLAMA_MODEL_REASONING', 'gemma4:26b')
+        else:
+            self.model = getattr(settings, 'OLLAMA_MODEL', 'gemma4')
+
         self.timeout = 300  # seconds — Gemma4 needs more time for complex JDs
         self.last_raw_response = None  # stored for debugging failed parses
         self.last_raw_payload = None
+        self.eta = None
+        self.done_at = None
 
         # Only attach Ngrok and Basic Auth headers if targeting a remote URL
         is_local = any(host in self.base_url for host in ("localhost", "127.0.0.1", "0.0.0.0"))
@@ -59,13 +69,48 @@ class OllamaClient:
             client,
             mode=instructor.Mode.JSON,
         )
-        self.batch_start = time.time()
-        self.last_log_time = time.time()
+        self.batch_start = self.last_log_time = self.last_job_time = time.time()
         self.processed = 0
         self.failed = 0
         self.gpu_temps = []
+        self.recent_durations = deque(maxlen=20)
 
-    def progress_log(self, i, n, text):
+    @classmethod
+    def get_reasoning_client(cls) -> "OllamaClient":
+        """Convenience factory for the high-capacity reasoning model."""
+        model = getattr(settings, 'OLLAMA_MODEL_REASONING', 'gemma4:26b')
+        return cls(model=model)
+
+    def estimate_eta(self, i: int, n: int, job_duration: float) -> tuple[timedelta, str]:
+        """
+        Calculates ETA using a trimmed mean over a rolling deque window
+        to filter out cold-starts and network spikes.
+        """
+        # Exclude initial cold-start model load from the rolling window
+        if not (i == 1 and job_duration > 30):
+            self.recent_durations.append(job_duration)
+
+        # Trimmed mean: discard top and bottom 35% to eliminate outliers
+        if len(self.recent_durations) >= 5:
+            sorted_d = sorted(self.recent_durations)
+            trim = max(1, int(len(sorted_d) * 0.35))
+            middle = sorted_d[trim:-trim]
+            pace = sum(middle) / len(middle)
+        elif self.recent_durations:
+            pace = statistics.median(self.recent_durations)
+        else:
+            pace = job_duration
+
+        remaining = max(0, n - i)
+        eta_seconds = int(pace * remaining)
+        eta = timedelta(seconds=eta_seconds)
+        try:
+            done_at = (datetime.now() + timedelta(seconds=eta_seconds)).strftime('%-I:%M %p')
+        except ValueError:
+            done_at = (datetime.now() + timedelta(seconds=eta_seconds)).strftime('%I:%M %p').lstrip('0')
+        return eta, done_at
+
+    def progress_log(self, i, n, text, is_substep=False):
         gpu_temp = self.get_gpu_temp()
         if gpu_temp:
             self.gpu_temps.append(gpu_temp)
@@ -74,12 +119,22 @@ class OllamaClient:
         elapsed = now - self.batch_start
         job_duration = now - self.last_log_time
         self.last_log_time = now
-        
-        avg = elapsed / max(self.processed, 1)
-        eta = timedelta(seconds=int(avg * (n - i)))
-        done_at = (datetime.now() + timedelta(seconds=avg * (n - i))).strftime('%-I:%M %p')
-        line = f"[{i}/{n}] {text} | Took: {job_duration:.1f}s | GPU: {gpu_temp or '?'}°C | Elapsed: {timedelta(seconds=int(elapsed))} | ETA: {eta} (~{done_at})"
-        print_progress(line)
+
+        if is_substep:
+            eta_str = f" | ETA: {self.eta} (~{self.done_at})" if self.eta and self.done_at else ""
+            line = (
+                f"[{i}/{n}] {text} | Took: {job_duration:.1f}s | GPU: {gpu_temp or '?'}°C | Elapsed: {timedelta(seconds=int(elapsed))}"
+                f"{eta_str}"
+            )
+            print_progress(line)
+        else:
+            loop_duration = now - self.last_job_time
+            self.last_job_time = now
+            eta, done_at = self.estimate_eta(i, n, loop_duration)
+            self.eta = eta
+            self.done_at = done_at
+            line = f"[{i}/{n}] {text} | Took: {job_duration:.1f}s | GPU: {gpu_temp or '?'}°C | Elapsed: {timedelta(seconds=int(elapsed))} | ETA: {eta} (~{done_at})"
+            print_progress(line)
 
     def final_log(self, text):
         batch_time = timedelta(seconds=int(time.time() - self.batch_start))
@@ -101,7 +156,9 @@ class OllamaClient:
                 capture_output=True, text=True, timeout=5
             )
             if result.returncode == 0:
-                return int(result.stdout.strip().split('\n')[0])
+                raw_val = result.stdout.strip().split('\n')[0].strip()
+                return float(raw_val)
+                # return int(round(float(raw_val)))
         except (FileNotFoundError, ValueError, subprocess.TimeoutExpired):
             pass
         return None
@@ -115,14 +172,12 @@ class OllamaClient:
             return True, temp
         return False, temp
 
-    def generate(self, prompt: str, max_retries: int = 3) -> dict:
+    def generate(self, prompt: str, max_parse_retries: int = 3) -> dict:
         """
         Send a prompt to Ollama and return the parsed JSON response.
-        Raises OllamaUnavailableError on connection failure after max_retries.
-        Returns empty dict on JSON parse failure after max_retries.
+        If communication fails (network, timeout, server down), pauses and retries
+        every 60 seconds until connection is restored.
         """
-        self._thermal_check()
-
         payload = {
             "model": self.model,
             "prompt": prompt,
@@ -134,12 +189,15 @@ class OllamaClient:
             }
         }
 
-        for attempt in range(max_retries):
+        parse_attempt = 0
+        while True:
+            self._thermal_check()
+
             try:
                 response = requests.post(
                     f"{self.base_url}/api/generate",
                     json=payload,
-                    headers=self.headers,
+                    headers=getattr(self, 'headers', {}),
                     timeout=self.timeout
                 )
                 response.raise_for_status()
@@ -162,36 +220,25 @@ class OllamaClient:
                     last_brace = content.rfind('}')
                     if last_brace > 0:
                         truncated = content[:last_brace + 1]
-                        for extra in ['', '}', '}}', '}}}']:
+                        for extra in ['', '}', '}}', '}}}', ']}}', ']}', '"]}', '"]}}']:
                             try:
                                 return json.loads(truncated + extra)
                             except json.JSONDecodeError:
                                 continue
-                        # Also try closing any open arrays first
-                        for extra in [']}}', ']}', '"]}', '"]}}']: 
-                            try:
-                                return json.loads(truncated + extra)
-                            except json.JSONDecodeError:
-                                continue
-                    
-                    if attempt == max_retries - 1:
+
+                    parse_attempt += 1
+                    if parse_attempt >= max_parse_retries:
                         logger.error("Failed to parse Ollama JSON response after maximum retries")
                         return {}
                     time.sleep(2)
                     continue
 
-            except requests.exceptions.ReadTimeout as e:
-                if attempt == max_retries - 1:
-                    logger.error(f"Ollama request timed out after {self.timeout}s: {e}")
-                    raise TimeoutError(f"Ollama timed out after {self.timeout}s") from e
-                time.sleep(2)
-            except requests.exceptions.RequestException as e:
-                if attempt == max_retries - 1:
-                    logger.error(f"Failed to communicate with Ollama: {e}")
-                    raise OllamaUnavailableError(f"Ollama service unavailable at {self.base_url}") from e
-                time.sleep(2)
-
-        return {}
+            except KeyboardInterrupt:
+                logger.info("Interrupted by user during LLM API call.")
+                raise
+            except Exception as e:
+                logger.error(f"Error communicating with LLM API: {e}. Execution paused. Retrying in 60 seconds...")
+                time.sleep(60)
 
     def call_model_structured(self, prompt: str, response_model: type[BaseModel], method: str = "instructor") -> tuple[BaseModel, any]:
         """
@@ -227,7 +274,7 @@ class OllamaClient:
                     response = requests.post(
                         f"{self.base_url}/api/generate",
                         json=payload,
-                        headers=self.headers,
+                        headers=getattr(self, 'headers', {}),
                         timeout=self.timeout
                     )
                     response.raise_for_status()
@@ -327,6 +374,13 @@ Job Description:
             except (ValueError, TypeError):
                 return None
 
+        def parse_skills(val):
+            if isinstance(val, list):
+                return [str(x).strip() for x in val if x and str(x).strip().lower() != 'unknown']
+            if isinstance(val, str) and val.strip() and val.strip().lower() not in ('unknown', 'none', 'n/a', 'null'):
+                return [s.strip() for s in val.split(',') if s.strip()]
+            return []
+
         return {
             "role_summary": result.get("role_summary", "unknown"),
             "role_title": result.get("role_title", "unknown"),
@@ -334,8 +388,8 @@ Job Description:
             "role_category": result.get("role_category", "unknown"),
             "experience_min": parse_exp(result.get("experience_min")),
             "experience_max": parse_exp(result.get("experience_max")),
-            "required_skills": result.get("required_skills", []),
-            "preferred_skills": result.get("preferred_skills", []),
+            "required_skills": parse_skills(result.get("required_skills")),
+            "preferred_skills": parse_skills(result.get("preferred_skills")),
         }
 
     def normalize_tech_stack(self, extracted_techs: List[str], known_techs: List[str]) -> Dict[str, List[str]]:
@@ -364,12 +418,12 @@ Known canonical names:
 Extracted names to normalize:
 {json.dumps(extracted_techs)}"""
 
-        print(f"\n[Normalization] Extracted techs: {extracted_techs}")
-        print(f"[Normalization] Passed candidates: {len(known_techs)}")
-        
+        # print(f"\n[Normalization] Extracted techs: {extracted_techs}")
+        # print(f"[Normalization] Passed candidates: {len(known_techs)}")
+        #
         result = self.generate(prompt)
         
-        print(f"[Normalization] LLM returned: {json.dumps(result)}")
+        # print(f"[Normalization] LLM returned: {json.dumps(result)}")
         
         # Validate: every value must be a string or list of strings and either in known_techs or "unknown"
         known_set = set(known_techs)

@@ -93,6 +93,10 @@ DATABASES = {
     'job': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db2.sqlite3',
+    },
+    'checkpoints': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'apply_checkpoints.db',
     }
 }
 
@@ -169,4 +173,4 @@ CORS_ALLOW_ALL_ORIGINS = True
 # Ollama LLM Configuration
 OLLAMA_BASE_URL = 'http://localhost:11434'
 OLLAMA_MODEL = 'gemma4'
-
+OLLAMA_MODEL_REASONING = 'gemma4:26b'
